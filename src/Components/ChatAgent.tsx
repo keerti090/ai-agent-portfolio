@@ -183,6 +183,7 @@ const ChatAgent: React.FC<ChatAgentProps> = ({ messages, setMessages }) => {
         },
         body: JSON.stringify({ message: query }),
       });
+      console.log("Sent query:", response);
 
       const data = await response.json();
 

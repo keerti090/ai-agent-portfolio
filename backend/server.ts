@@ -1,76 +1,3 @@
-// import express from "express";
-// import * as dotenv from "dotenv";
-// import cors from "cors";
-// import bodyParser from "body-parser";
-// import fs from "fs";
-// import path from "path";
-// import pdf from "pdf-parse";
-// import cheerio from "cheerio";
-
-// import { systemPrompt } from "./SystemPrompt";
-// import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
-// import { FAISS } from "langchain/vectorstores/faiss";
-// import { Document } from "langchain/document";
-// import { SentenceTransformerEmbeddings } from "langchain/embeddings/sentence_transformer";
-// import { LLM } from "langchain/llms/base";
-
-
-// dotenv.config();
-
-// const app = express();
-// app.use(cors());
-// app.use(express.json());
-
-// // Debug mode middleware
-// app.use((req, res, next) => {
-//   console.log("➡️ Incoming request:", req.method, req.url);
-//   console.log("Body:", req.body);
-//   next();
-// });
-
-// app.post("/api/chat", async (req, res) => {
-//   try {
-//     const apiKey = process.env.VITE_OPENROUTER_API_KEY;
-//     console.log("🔑 Using API key:", apiKey?.slice(0, 10) + "..."); // show partial key
-
-//     if (!apiKey) {
-//       console.error("❌ No API key found in environment variables");
-//       return res.status(500).json({ error: "Server missing API key" });
-//     }
-
-//     const requestBody = JSON.stringify(req.body);
-//     console.log("📤 Sending request to OpenRouter:", requestBody);
-
-//     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-//       method: "POST",
-//       headers: {
-//         Authorization: `Bearer ${apiKey}`,
-//         "Content-Type": "application/json",
-//       },
-//       body: requestBody,
-//     });
-
-//     const responseText = await response.text();
-//     console.log("📥 OpenRouter response status:", response.status);
-//     console.log("📥 OpenRouter raw response:", responseText);
-
-//     if (!response.ok) {
-//       return res.status(response.status).json({ error: "Failed request to OpenRouter", details: responseText });
-//     }
-
-//     const data = JSON.parse(responseText);
-//     res.json(data);
-//   } catch (error) {
-//     console.error("🔥 Backend error:", error);
-//     res.status(500).json({ error: "Server error" });
-//   }
-// });
-
-// const PORT = 3001;
-// app.listen(PORT, () => console.log(`✅ Server running on http://localhost:${PORT}`));
-
-// backend/server.ts
-
 import dotenv from "dotenv";
 import cors from "cors";
 dotenv.config();
@@ -187,23 +114,32 @@ async function buildVectorStore(): Promise<MemoryVectorStore> {
 app.post("/ask", async (req, res) => {
   try {
     const { message } = req.body;
+    console.log("Received message:", message);
 
     if (!vectorstore) {
       vectorstore = await buildVectorStore();
+      console.log("Vector store initialized with docs:", vectorstore.memoryVectors.length);
     }
 
-    // Search relevant chunks
-    const results = await vectorstore.similaritySearch(message, 5);
-    const context = results.map(r => r.pageContent).join("\n");
+    // Search with scores
+    const results = await vectorstore.similaritySearchWithScore(message, 5);
+
+    console.log("Raw results count:", results.length);
+
+    const relevantDocs = results.filter(([doc, score]) => score > 0.7);
+    console.log("Relevant docs count:", relevantDocs.length);
+
+    const context = relevantDocs.map(([doc]) => doc.pageContent).join("\n");
+    console.log("Context snippet:", context.slice(0, 200));
 
     const messages: ChatCompletionMessageParam[] = [
       { role: "system", content: systemprompt },
-      { role: "user", content: `Answer in a friendly portfolio style. Ask if they wanna know more\n\nContext:\n${context}\n\nQuestion: ${message} Always pull project details from the case studies above if relevent` },
+      { role: "user", content: `Answer in a friendly portfolio style. Ask if they wanna know more.\n\nContext:\n${context}\n\nQuestion: ${message}` },
     ];
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      temperature: 0.7,
+      temperature: 0.1,
       messages,
     });
 
@@ -211,7 +147,7 @@ app.post("/ask", async (req, res) => {
       answer: completion.choices[0].message.content,
     });
   } catch (err) {
-    console.error(err);
+    console.error("🔥 Error in /ask:", err);
     res.status(500).json({ error: "Something went wrong" });
   }
 });
