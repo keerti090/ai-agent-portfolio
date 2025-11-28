@@ -11,19 +11,22 @@
   },
   "dependencies": {
     "@huggingface/inference": "^4.7.1",
-    "@langchain/community": "^0.3.54",
+    "@langchain/community": "0.3.57",
+    "@langchain/core": "^0.3.68",
     "axios": "^1.11.0",
     "cheerio": "^1.1.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^5.1.0",
     "faiss-node": "^0.5.1",
-    "langchain": "^0.3.31",
+    "node-fetch": "^3.3.2",
     "openai": "^4.104.0",
+    "pdf-parse": "^1.1.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-markdown": "^10.1.0",
-    "remark-gfm": "^4.0.1"
+    "remark-gfm": "^4.0.1",
+    "tesseract.js": "^6.0.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.0",
@@ -36,6 +39,7 @@
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
     "@vitejs/plugin-react": "^4.4.1",
+    "env-cmd": "^10.1.0",
     "eslint": "^9.25.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.19",

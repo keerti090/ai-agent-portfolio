@@ -6,156 +6,294 @@ import express from "express";
 import bodyParser from "body-parser";
 import fs from "fs";
 import path from "path";
+import fetch from "node-fetch";
 import { fileURLToPath } from "url";
-// import * as pdf from "pdf-parse";
-// import pdf from 'pdf-parse/lib/pdf-parse'
-import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import * as cheerio from "cheerio";
-import { Document } from "langchain/document";
-import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
+
+import { Document } from "@langchain/core/documents";
+import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import { OpenAIEmbeddings } from "@langchain/openai";
+import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
+
 import OpenAI from "openai";
-import { systemprompt } from "./systemprompt.js";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 
+import { systemprompt } from "./systemprompt.js";
 
 const app = express();
 app.use(bodyParser.json());
 app.use(cors({ origin: "*" }));
-console.log("OPENAI_API_KEY:", process.env.OPENAI_API_KEY ? "✅ found" : "❌ missing-early");
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-console.log("OPENAI_API_KEY:", process.env.OPENAI_API_KEY ? "✅ found111" : "❌ missing111");
-let vectorstore: MemoryVectorStore | null = null;
 
+console.log("🔑 OPENAI KEY:", process.env.OPENAI_API_KEY ? "Loaded" : "❌ Missing");
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY!,
+});
+
+// Needed for __dirname in ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+let vectorstore: MemoryVectorStore | null = null;
+
 //
-// 🔹 PDF loader
+// ======================================
+// 🔹 PDF LOADER
+// ======================================
 //
-// async function loadPDF(filePath: string): Promise<Document[]> {
-//   const buffer = fs.readFileSync(filePath);
-//   const data = await pdf.default(buffer);
-//   return [
-//     new Document({
-//       pageContent: data.text,
-//       metadata: { source: filePath },
-//     }),
-//   ];
-// }
 async function loadPDF(filePath: string) {
+  console.log("📄 Loading PDF:", filePath);
   const loader = new PDFLoader(filePath);
-  return await loader.load();
+  const docs = await loader.load();
+  console.log(`   → Loaded ${docs.length} pages from PDF`);
+  return docs;
 }
+
 //
-// 🔹 HTML loader
+// ======================================
+// 🔹 HTML LOADER (REMOTE + LOCAL)
+// ======================================
 //
-async function loadWebsite(filePath: string): Promise<Document[]> {
-  const html = fs.readFileSync(filePath, "utf-8");
+async function loadWebsite(src: string): Promise<Document[]> {
+  console.log("🌐 Loading website / HTML:", src);
+
+  let html = "";
+
+  try {
+    if (src.startsWith("http")) {
+      const response = await fetch(src);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status} ${response.statusText}`);
+      }
+      html = await response.text();
+    } else {
+      html = fs.readFileSync(src, "utf8");
+    }
+  } catch (err) {
+    console.error("   ⚠️ Error fetching HTML:", err);
+    throw err;
+  }
+
   const $ = cheerio.load(html);
-  const text = $("body").text().replace(/\s+/g, " ").trim();
+
+  // Extract visible text from body
+  const text = $("body")
+    .text()
+    .replace(/\s+/g, " ")
+    .trim();
+
+  // Extract image URLs (if helpful later)
+  const images: string[] = [];
+  $("img").each((_, img) => {
+    const url = $(img).attr("src");
+    if (url) images.push(url);
+  });
+
+  const combinedContent = `
+TEXT CONTENT:
+${text}
+
+IMAGES:
+${images.join("\n")}
+  `.trim();
+
+  console.log(
+    "   → Extracted text length:",
+    combinedContent.length,
+    "chars"
+  );
 
   return [
     new Document({
-      pageContent: text,
-      metadata: { source: filePath },
+      pageContent: combinedContent,
+      metadata: { source: src },
     }),
   ];
 }
 
 //
-// 🔹 Build Vector Store
+// ======================================
+// 🔹 BUILD VECTOR STORE
+// ======================================
 //
 async function buildVectorStore(): Promise<MemoryVectorStore> {
+  console.log("\n==============================");
+  console.log("🚧 Building vector store...");
+  console.log("==============================");
+
   const docs: Document[] = [];
 
-  // Load PDFs
-  const pdfDir = path.join(__dirname, "data/search.pdf");
-  console.log("file path:", pdfDir);
-  if (fs.existsSync(pdfDir)) {
-    const files = fs.readdirSync(pdfDir).filter(f => f.endsWith(".pdf"));
-    for (const f of files) {
-      docs.push(...(await loadPDF(path.join(pdfDir, f))));
+  //
+  // 🔸 LOAD PDFs from backend/data
+  //
+  const dataDir = path.join(__dirname, "../backend/data"); // <--- IMPORTANT FIX
+  console.log("📁 Looking for data in:", dataDir);
+
+  if (fs.existsSync(dataDir)) {
+    // PDFs
+    const pdfFiles = fs.readdirSync(dataDir).filter((f) => f.toLowerCase().endsWith(".pdf"));
+    if (pdfFiles.length === 0) {
+      console.log("   ⚠️ No PDF files found in data directory.");
+    } else {
+      console.log("   📄 Found PDF files:", pdfFiles);
+      for (const file of pdfFiles) {
+        const filePath = path.join(dataDir, file);
+        const loaded = await loadPDF(filePath);
+        docs.push(...loaded);
+      }
+    }
+  } else {
+    console.log("   ⚠️ Data directory does not exist:", dataDir);
+  }
+
+  //
+  // 🔸 LOAD HTML (Webflow public URL + any local HTML files in data/)
+  //
+  const sources: string[] = [];
+
+  // 1) Public Webflow URL (no path.join)
+  sources.push("https://keertis-dapper-site.webflow.io/");
+
+  // 2) Any local .html/.htm files in backend/data
+  if (fs.existsSync(dataDir)) {
+    const htmlFiles = fs
+      .readdirSync(dataDir)
+      .filter(
+        (f) =>
+          f.toLowerCase().endsWith(".html") ||
+          f.toLowerCase().endsWith(".htm")
+      );
+
+    if (htmlFiles.length > 0) {
+      console.log("   🧾 Found local HTML files:", htmlFiles);
+      for (const file of htmlFiles) {
+        sources.push(path.join(dataDir, file));
+      }
     }
   }
 
-
-  // Load Websites
-  const webDir = path.join(__dirname, "data/websites");
-  if (fs.existsSync(webDir)) {
-    const files = fs.readdirSync(webDir).filter(f => f.endsWith(".html"));
-    for (const f of files) {
-      docs.push(...(await loadWebsite(path.join(webDir, f))));
+  // Load each HTML source
+  for (const src of sources) {
+    try {
+      const loaded = await loadWebsite(src);
+      docs.push(...loaded);
+      console.log("✔️ Loaded HTML source:", src);
+    } catch (err) {
+      console.error("⚠️ Failed loading HTML source:", src, err);
     }
   }
 
-  // Split into chunks
+  console.log("📄 RAW DOC COUNT:", docs.length);
+  docs.forEach((d, i) => {
+    console.log(`--- DOC #${i + 1} (${d.metadata.source})`);
+    console.log("PREVIEW:", d.pageContent.slice(0, 400), "...\n");
+  });
+
+  //
+  // 🔸 SPLIT CHUNKS
+  //
   const splitter = new RecursiveCharacterTextSplitter({
-    chunkSize: 1000,
+    chunkSize: 1200,
     chunkOverlap: 200,
   });
-  const splitDocs = await splitter.splitDocuments(docs);
 
-  // Use OpenAI embeddings
+  const splitDocs = await splitter.splitDocuments(docs);
+  console.log("✂️ TOTAL SPLIT CHUNKS:", splitDocs.length);
+
+  //
+  // 🔸 EMBEDDINGS + VECTOR STORE
+  //
   const embeddings = new OpenAIEmbeddings({
     model: "text-embedding-3-small",
-    openAIApiKey: process.env.OPENAI_API_KEY,
+    apiKey: process.env.OPENAI_API_KEY,
   });
 
-  return await MemoryVectorStore.fromDocuments(splitDocs, embeddings);
+  const store = await MemoryVectorStore.fromDocuments(splitDocs, embeddings);
+  console.log("🧠 Vector store created successfully!");
+
+  return store;
 }
 
 //
-// 🔹 Ask endpoint
+// ======================================
+// 🔹 ASK ENDPOINT
+// ======================================
 //
 app.post("/ask", async (req, res) => {
   try {
-    const { message } = req.body;
-    console.log("Received message:", message);
+    const { message } = req.body as { message: string };
+
+    console.log("\n==============================");
+    console.log("💬 USER QUESTION:", message);
+    console.log("==============================\n");
 
     if (!vectorstore) {
       vectorstore = await buildVectorStore();
-      console.log("Vector store initialized with docs:", vectorstore.memoryVectors.length);
     }
 
-    // Search with scores
-    const results = await vectorstore.similaritySearchWithScore(message, 5);
+    //
+    // 🔸 SEARCH VECTOR STORE
+    //
+    const searchResults = await vectorstore.similaritySearch(message, 5);
+    console.log("🔍 Retrieved Chunks:", searchResults.length);
 
-    console.log("Raw results count:", results.length);
+    searchResults.forEach((doc, i) => {
+      console.log(`--- MATCH ${i + 1}`);
+      console.log(doc.pageContent.slice(0, 300), "...\n");
+    });
 
-    const relevantDocs = results.filter(([doc, score]) => score > 0.7);
-    console.log("Relevant docs count:", relevantDocs.length);
+    const context = searchResults
+      .map((doc) => doc.pageContent)
+      .join("\n---\n");
 
-    const context = relevantDocs.map(([doc]) => doc.pageContent).join("\n");
-    console.log("Context snippet:", context.slice(0, 200));
+    console.log("🧠 FINAL CONTEXT SENT TO LLM:\n", context.slice(0, 2000));
 
+    //
+    // 🔸 CREATE SYSTEM + USER MESSAGE
+    //
     const messages: ChatCompletionMessageParam[] = [
-      { role: "system", content: systemprompt },
-      { role: "user", content: `Answer in a friendly portfolio style. Ask if they wanna know more.\n\nContext:\n${context}\n\nQuestion: ${message}` },
+      {
+        role: "system",
+        content: systemprompt, // if you want to keep using the imported system prompt
+      },
+      {
+        role: "user",
+        content: `
+Use this context to answer:
+
+${context}
+
+Question:
+${message}
+        `,
+      },
     ];
 
+    //
+    // 🔸 CALL OPENAI
+    //
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      temperature: 0.1,
+      temperature: 0.3,
       messages,
     });
 
-    res.json({
-      answer: completion.choices[0].message.content,
-    });
+    const answer = completion.choices[0].message.content;
+
+    res.json({ answer });
   } catch (err) {
-    console.error("🔥 Error in /ask:", err);
-    res.status(500).json({ error: "Something went wrong" });
+    console.error("🔥 /ask error:", err);
+    res.status(500).json({ error: "Something went wrong." });
   }
 });
 
 //
-// 🔹 Start server
+// ======================================
+// 🔹 START SERVER
+// ======================================
 //
 const PORT = 3000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-});
+app.listen(PORT, () =>
+  console.log(`🚀 Server running at http://localhost:${PORT}`)
+);
