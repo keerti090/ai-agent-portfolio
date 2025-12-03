@@ -19,6 +19,18 @@ import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import OpenAI from "openai";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 
+const REQUIRED_ENV_VARS = ["OPENAI_API_KEY"] as const;
+const missingEnv = REQUIRED_ENV_VARS.filter(key => !process.env[key]);
+if (missingEnv.length > 0) {
+  throw new Error(`Missing required environment variables: ${missingEnv.join(", ")}`);
+}
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const DATA_ROOT = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(__dirname, "data");
+const PDF_SOURCE = process.env.PDF_DIR ? path.resolve(process.env.PDF_DIR) : DATA_ROOT;
+const WEBSITE_SOURCE = process.env.WEBSITE_DIR ? path.resolve(process.env.WEBSITE_DIR) : path.join(DATA_ROOT, "websites");
 import { systemprompt } from "./systemprompt.js";
 
 const app = express();
@@ -30,6 +42,37 @@ console.log("🔑 OPENAI KEY:", process.env.OPENAI_API_KEY ? "Loaded" : "❌ Mis
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
 });
+let vectorstorePromise: Promise<MemoryVectorStore> | null = null;
+
+function listFiles(targetPath: string, extension: string): string[] {
+  try {
+    if (!fs.existsSync(targetPath)) {
+      return [];
+    }
+
+    const stats = fs.statSync(targetPath);
+    const matchesExtension = (filePath: string) => filePath.toLowerCase().endsWith(extension.toLowerCase());
+
+    if (stats.isDirectory()) {
+      return fs
+        .readdirSync(targetPath)
+        .map(file => path.join(targetPath, file))
+        .filter(filePath => {
+          const fileStats = fs.statSync(filePath);
+          return fileStats.isFile() && matchesExtension(filePath);
+        });
+    }
+
+    if (stats.isFile() && matchesExtension(targetPath)) {
+      return [targetPath];
+    }
+
+    return [];
+  } catch (error) {
+    console.error(`Failed to list files for ${targetPath}:`, error);
+    return [];
+  }
+}
 
 // Needed for __dirname in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -124,52 +167,21 @@ async function buildVectorStore(): Promise<MemoryVectorStore> {
 
   const docs: Document[] = [];
 
-  //
-  // 🔸 LOAD PDFs from backend/data
-  //
-  const dataDir = path.join(__dirname, "../backend/data"); // <--- IMPORTANT FIX
-  console.log("📁 Looking for data in:", dataDir);
-
-  if (fs.existsSync(dataDir)) {
-    // PDFs
-    const pdfFiles = fs.readdirSync(dataDir).filter((f) => f.toLowerCase().endsWith(".pdf"));
-    if (pdfFiles.length === 0) {
-      console.log("   ⚠️ No PDF files found in data directory.");
-    } else {
-      console.log("   📄 Found PDF files:", pdfFiles);
-      for (const file of pdfFiles) {
-        const filePath = path.join(dataDir, file);
-        const loaded = await loadPDF(filePath);
-        docs.push(...loaded);
-      }
-    }
-  } else {
-    console.log("   ⚠️ Data directory does not exist:", dataDir);
+  // Load PDFs
+  const pdfFiles = listFiles(PDF_SOURCE, ".pdf");
+  for (const pdfFile of pdfFiles) {
+    console.log(`Loading PDF source: ${pdfFile}`);
+    docs.push(...(await loadPDF(pdfFile)));
   }
 
-  //
-  // 🔸 LOAD HTML (Webflow public URL + any local HTML files in data/)
-  //
-  const sources: string[] = [];
-
-  // 1) Public Webflow URL (no path.join)
-  sources.push("https://keertis-dapper-site.webflow.io/");
-
-  // 2) Any local .html/.htm files in backend/data
-  if (fs.existsSync(dataDir)) {
-    const htmlFiles = fs
-      .readdirSync(dataDir)
-      .filter(
-        (f) =>
-          f.toLowerCase().endsWith(".html") ||
-          f.toLowerCase().endsWith(".htm")
-      );
-
-    if (htmlFiles.length > 0) {
-      console.log("   🧾 Found local HTML files:", htmlFiles);
-      for (const file of htmlFiles) {
-        sources.push(path.join(dataDir, file));
-      }
+  // Load Websites
+  const websiteDirExists = fs.existsSync(WEBSITE_SOURCE) && fs.statSync(WEBSITE_SOURCE).isDirectory();
+  if (websiteDirExists) {
+    const files = fs.readdirSync(WEBSITE_SOURCE).filter(f => f.toLowerCase().endsWith(".html"));
+    for (const file of files) {
+      const websitePath = path.join(WEBSITE_SOURCE, file);
+      console.log(`Loading HTML source: ${websitePath}`);
+      docs.push(...(await loadWebsite(websitePath)));
     }
   }
 
@@ -215,6 +227,16 @@ async function buildVectorStore(): Promise<MemoryVectorStore> {
   return store;
 }
 
+async function getVectorStore() {
+  if (!vectorstorePromise) {
+    vectorstorePromise = buildVectorStore().catch(error => {
+      vectorstorePromise = null;
+      throw error;
+    });
+  }
+  return vectorstorePromise;
+}
+
 //
 // ======================================
 // 🔹 ASK ENDPOINT
@@ -222,21 +244,19 @@ async function buildVectorStore(): Promise<MemoryVectorStore> {
 //
 app.post("/ask", async (req, res) => {
   try {
-    const { message } = req.body as { message: string };
-
-    console.log("\n==============================");
-    console.log("💬 USER QUESTION:", message);
-    console.log("==============================\n");
-
-    if (!vectorstore) {
-      vectorstore = await buildVectorStore();
+    const { message } = req.body;
+    if (typeof message !== "string" || message.trim().length === 0) {
+      return res.status(400).json({ error: "Request body must include a non-empty 'message' string." });
     }
 
-    //
-    // 🔸 SEARCH VECTOR STORE
-    //
-    const searchResults = await vectorstore.similaritySearch(message, 5);
-    console.log("🔍 Retrieved Chunks:", searchResults.length);
+    const trimmedMessage = message.trim();
+    console.log("Received message:", trimmedMessage);
+
+    const vectorstore = await getVectorStore();
+    console.log("Vector store ready with docs:", vectorstore.memoryVectors.length);
+
+    // Search with scores
+    const results = await vectorstore.similaritySearchWithScore(trimmedMessage, 5);
 
     searchResults.forEach((doc, i) => {
       console.log(`--- MATCH ${i + 1}`);
@@ -253,21 +273,8 @@ app.post("/ask", async (req, res) => {
     // 🔸 CREATE SYSTEM + USER MESSAGE
     //
     const messages: ChatCompletionMessageParam[] = [
-      {
-        role: "system",
-        content: systemprompt, // if you want to keep using the imported system prompt
-      },
-      {
-        role: "user",
-        content: `
-Use this context to answer:
-
-${context}
-
-Question:
-${message}
-        `,
-      },
+      { role: "system", content: systemprompt },
+      { role: "user", content: `Answer in a friendly portfolio style. Ask if they wanna know more.\n\nContext:\n${context}\n\nQuestion: ${trimmedMessage}` },
     ];
 
     //
@@ -288,12 +295,20 @@ ${message}
   }
 });
 
+app.get("/healthz", (_req, res) => {
+  res.json({ status: "ok" });
+});
+
 //
 // ======================================
 // 🔹 START SERVER
 // ======================================
 //
-const PORT = 3000;
-app.listen(PORT, () =>
-  console.log(`🚀 Server running at http://localhost:${PORT}`)
-);
+const parsedPort = Number(process.env.PORT ?? 3000);
+if (Number.isNaN(parsedPort)) {
+  throw new Error("PORT must be a number");
+}
+
+app.listen(parsedPort, () => {
+  console.log(`🚀 Server running on http://localhost:${parsedPort}`);
+});
