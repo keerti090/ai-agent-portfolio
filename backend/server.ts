@@ -15,6 +15,7 @@ import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import { OpenAIEmbeddings } from "@langchain/openai";
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
+import { systemprompt } from "./systemprompt.js";
 
 import OpenAI from "openai";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
@@ -31,7 +32,10 @@ const __dirname = path.dirname(__filename);
 const DATA_ROOT = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(__dirname, "data");
 const PDF_SOURCE = process.env.PDF_DIR ? path.resolve(process.env.PDF_DIR) : DATA_ROOT;
 const WEBSITE_SOURCE = process.env.WEBSITE_DIR ? path.resolve(process.env.WEBSITE_DIR) : path.join(DATA_ROOT, "websites");
-import { systemprompt } from "./systemprompt.js";
+const REMOTE_SOURCE_ENV = process.env.HTML_SOURCES ?? process.env.WEBSITE_SOURCES ?? "";
+const remoteSources = REMOTE_SOURCE_ENV.split(",")
+  .map(src => src.trim())
+  .filter(Boolean);
 
 const app = express();
 app.use(bodyParser.json());
@@ -73,12 +77,6 @@ function listFiles(targetPath: string, extension: string): string[] {
     return [];
   }
 }
-
-// Needed for __dirname in ESM
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-let vectorstore: MemoryVectorStore | null = null;
 
 //
 // ======================================
@@ -185,8 +183,8 @@ async function buildVectorStore(): Promise<MemoryVectorStore> {
     }
   }
 
-  // Load each HTML source
-  for (const src of sources) {
+  // Load each remote HTML source from env
+  for (const src of remoteSources) {
     try {
       const loaded = await loadWebsite(src);
       docs.push(...loaded);
@@ -256,15 +254,15 @@ app.post("/ask", async (req, res) => {
     console.log("Vector store ready with docs:", vectorstore.memoryVectors.length);
 
     // Search with scores
-    const results = await vectorstore.similaritySearchWithScore(trimmedMessage, 5);
+    const searchResults = await vectorstore.similaritySearchWithScore(trimmedMessage, 5);
 
-    searchResults.forEach((doc, i) => {
+    searchResults.forEach(([doc], i) => {
       console.log(`--- MATCH ${i + 1}`);
       console.log(doc.pageContent.slice(0, 300), "...\n");
     });
 
     const context = searchResults
-      .map((doc) => doc.pageContent)
+      .map(([doc]) => doc.pageContent)
       .join("\n---\n");
 
     console.log("🧠 FINAL CONTEXT SENT TO LLM:\n", context.slice(0, 2000));
