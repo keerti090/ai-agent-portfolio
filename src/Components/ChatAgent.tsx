@@ -127,7 +127,7 @@
 
 // export default ChatAgent;
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import "../style.css";
@@ -166,14 +166,7 @@ const ChatAgent: React.FC<ChatAgentProps> = ({ messages, setMessages }) => {
     }
   };
 
-  // --- Trigger API when user message is added ---
-  useEffect(() => {
-    if (messages.length > 0 && messages[messages.length - 1].role === "user") {
-      handleSend(messages[messages.length - 1].content);
-    }
-  }, [messages]);
-
-  const handleSend = async (query: string) => {
+  const handleSend = useCallback(async (query: string) => {
     setLoading(true);
     try {
       const response = await fetch("http://localhost:3000/ask", {
@@ -199,16 +192,25 @@ const ChatAgent: React.FC<ChatAgentProps> = ({ messages, setMessages }) => {
           },
         ]);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Network error:", err);
+      const fallbackMessage =
+        err instanceof Error ? `⚠️ Network error: ${err.message}` : "⚠️ Network error. Try again later.";
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: `⚠️ Network error: ${err.message}` },
+        { role: "assistant", content: fallbackMessage },
       ]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [setMessages]);
+
+  // --- Trigger API when user message is added ---
+  useEffect(() => {
+    if (messages.length > 0 && messages[messages.length - 1].role === "user") {
+      handleSend(messages[messages.length - 1].content);
+    }
+  }, [messages, handleSend]);
 
   return (
     <div className="chat-container" ref={containerRef} onScroll={handleScroll}>

@@ -134,7 +134,7 @@
 
 // export default App;
 import { useState, useEffect } from 'react';
-import vector from "./assets/vector.svg";
+import vector from "./assets/Vector.svg";
 import pic from "./assets/pic.jpg";
 import "./App.css";
 import "./style.css";
@@ -174,7 +174,7 @@ function App() {
       }
     }, 1200);
     return () => clearTimeout(timer);
-  }, []);
+  }, [messages.length]);
 
   const menuItems = [
     { label: "Home" },
