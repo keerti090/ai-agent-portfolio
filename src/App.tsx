@@ -252,10 +252,11 @@ function App() {
               <img src={pic} alt="Keerti" className="hero-pic" />
 
               <h1 className="hero-title">Hi 👋, I'm Keerti</h1>
-              <p className="hero-subtitle">Product Designer & Developer</p>
+              <p className="hero-subtitle">Seasoned Product Designer & Developer</p>
 
               <p className="hero-description">
-                I design intelligent B2B XaaS experiences for Cloud Commerce platforms.
+              I help build B2B SaaS tools that manage people, access, and cloud resources
+— enabling organizations to operate efficiently at scale.
               </p>
 
               <p className="hero-kairo-text">
