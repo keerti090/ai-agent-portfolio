@@ -279,7 +279,8 @@ function App() {
           )}
 
           {/* Conversation */}
-         
+          <ChatAgent messages={messages} setMessages={setMessages} />
+
           {/* Chat Input */}
           <div className="textbox">
             <input
