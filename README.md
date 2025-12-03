@@ -1,54 +1,49 @@
-# React + TypeScript + Vite
+# AI Agent Portfolio
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This repo hosts Keerti's AI-powered portfolio: a Vite/React web UI and an Express/LangChain API layer.
 
-Currently, two official plugins are available:
+## Prerequisites
+- Node.js 20+
+- An OpenAI API key with access to `gpt-4o-mini` and `text-embedding-3-small`
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Environment variables
+Copy `.env.example` to `.env` and populate the values before running any scripts.
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+```
+OPENAI_API_KEY=sk-...
+PORT=3000                    # optional override
+DATA_DIR=./backend/data      # optional override
+PDF_DIR=                     # optional override
+WEBSITE_DIR=                 # optional override
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default tseslint.config({
-  plugins: {
-    // Add the react-x and react-dom plugins
-    'react-x': reactX,
-    'react-dom': reactDom,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended typescript rules
-    ...reactX.configs['recommended-typescript'].rules,
-    ...reactDom.configs.recommended.rules,
-  },
-})
+## Install dependencies
 ```
+npm install
+```
+
+## Build commands
+| Script | Description |
+| --- | --- |
+| `npm run build:server` | Compiles `backend/server.ts` to `backend/dist/server.js`. |
+| `npm run build:web` | Generates the production React bundle via Vite. |
+| `npm run build` | Runs both steps above sequentially. |
+
+## Run the production server locally
+```
+npm run build:server
+PORT=3000 node backend/dist/server.js
+```
+
+## Development helpers
+- `npm run dev` — Vite dev server for the UI
+- `npm run preview` — Preview the built frontend locally
+- `npm run lint` — ESLint across web + backend code
+- Use `ts-node --esm backend/server.ts` (or your preferred watcher) for API-only iteration
+
+## Deployment checklist
+1. Ensure `OPENAI_API_KEY` (and any optional paths) are configured in the host's environment.
+2. Upload/attach the knowledge base files under the directory referenced by `DATA_DIR` / `PDF_DIR` / `WEBSITE_DIR`.
+3. Run `npm ci && npm run build` during your deployment phase.
+4. Start the API with `npm run start` (which executes `node backend/dist/server.js`).
+5. Serve the frontend bundle in `dist/` from a static host or CDN and point it at the deployed `/ask` endpoint.
