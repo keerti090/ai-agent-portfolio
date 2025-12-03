@@ -19,19 +19,57 @@ import OpenAI from "openai";
 import { systemprompt } from "./systemprompt.js";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 
+const REQUIRED_ENV_VARS = ["OPENAI_API_KEY"] as const;
+const missingEnv = REQUIRED_ENV_VARS.filter(key => !process.env[key]);
+if (missingEnv.length > 0) {
+  throw new Error(`Missing required environment variables: ${missingEnv.join(", ")}`);
+}
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const DATA_ROOT = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(__dirname, "data");
+const PDF_SOURCE = process.env.PDF_DIR ? path.resolve(process.env.PDF_DIR) : DATA_ROOT;
+const WEBSITE_SOURCE = process.env.WEBSITE_DIR ? path.resolve(process.env.WEBSITE_DIR) : path.join(DATA_ROOT, "websites");
 
 const app = express();
 app.use(bodyParser.json());
 app.use(cors({ origin: "*" }));
-console.log("OPENAI_API_KEY:", process.env.OPENAI_API_KEY ? "✅ found" : "❌ missing-early");
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
-console.log("OPENAI_API_KEY:", process.env.OPENAI_API_KEY ? "✅ found111" : "❌ missing111");
-let vectorstore: MemoryVectorStore | null = null;
+let vectorstorePromise: Promise<MemoryVectorStore> | null = null;
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+function listFiles(targetPath: string, extension: string): string[] {
+  try {
+    if (!fs.existsSync(targetPath)) {
+      return [];
+    }
+
+    const stats = fs.statSync(targetPath);
+    const matchesExtension = (filePath: string) => filePath.toLowerCase().endsWith(extension.toLowerCase());
+
+    if (stats.isDirectory()) {
+      return fs
+        .readdirSync(targetPath)
+        .map(file => path.join(targetPath, file))
+        .filter(filePath => {
+          const fileStats = fs.statSync(filePath);
+          return fileStats.isFile() && matchesExtension(filePath);
+        });
+    }
+
+    if (stats.isFile() && matchesExtension(targetPath)) {
+      return [targetPath];
+    }
+
+    return [];
+  } catch (error) {
+    console.error(`Failed to list files for ${targetPath}:`, error);
+    return [];
+  }
+}
 
 //
 // 🔹 PDF loader
@@ -73,22 +111,20 @@ async function buildVectorStore(): Promise<MemoryVectorStore> {
   const docs: Document[] = [];
 
   // Load PDFs
-  const pdfDir = path.join(__dirname, "data/search.pdf");
-  console.log("file path:", pdfDir);
-  if (fs.existsSync(pdfDir)) {
-    const files = fs.readdirSync(pdfDir).filter(f => f.endsWith(".pdf"));
-    for (const f of files) {
-      docs.push(...(await loadPDF(path.join(pdfDir, f))));
-    }
+  const pdfFiles = listFiles(PDF_SOURCE, ".pdf");
+  for (const pdfFile of pdfFiles) {
+    console.log(`Loading PDF source: ${pdfFile}`);
+    docs.push(...(await loadPDF(pdfFile)));
   }
 
-
   // Load Websites
-  const webDir = path.join(__dirname, "data/websites");
-  if (fs.existsSync(webDir)) {
-    const files = fs.readdirSync(webDir).filter(f => f.endsWith(".html"));
-    for (const f of files) {
-      docs.push(...(await loadWebsite(path.join(webDir, f))));
+  const websiteDirExists = fs.existsSync(WEBSITE_SOURCE) && fs.statSync(WEBSITE_SOURCE).isDirectory();
+  if (websiteDirExists) {
+    const files = fs.readdirSync(WEBSITE_SOURCE).filter(f => f.toLowerCase().endsWith(".html"));
+    for (const file of files) {
+      const websitePath = path.join(WEBSITE_SOURCE, file);
+      console.log(`Loading HTML source: ${websitePath}`);
+      docs.push(...(await loadWebsite(websitePath)));
     }
   }
 
@@ -108,21 +144,34 @@ async function buildVectorStore(): Promise<MemoryVectorStore> {
   return await MemoryVectorStore.fromDocuments(splitDocs, embeddings);
 }
 
+async function getVectorStore() {
+  if (!vectorstorePromise) {
+    vectorstorePromise = buildVectorStore().catch(error => {
+      vectorstorePromise = null;
+      throw error;
+    });
+  }
+  return vectorstorePromise;
+}
+
 //
 // 🔹 Ask endpoint
 //
 app.post("/ask", async (req, res) => {
   try {
     const { message } = req.body;
-    console.log("Received message:", message);
-
-    if (!vectorstore) {
-      vectorstore = await buildVectorStore();
-      console.log("Vector store initialized with docs:", vectorstore.memoryVectors.length);
+    if (typeof message !== "string" || message.trim().length === 0) {
+      return res.status(400).json({ error: "Request body must include a non-empty 'message' string." });
     }
 
+    const trimmedMessage = message.trim();
+    console.log("Received message:", trimmedMessage);
+
+    const vectorstore = await getVectorStore();
+    console.log("Vector store ready with docs:", vectorstore.memoryVectors.length);
+
     // Search with scores
-    const results = await vectorstore.similaritySearchWithScore(message, 5);
+    const results = await vectorstore.similaritySearchWithScore(trimmedMessage, 5);
 
     console.log("Raw results count:", results.length);
 
@@ -134,7 +183,7 @@ app.post("/ask", async (req, res) => {
 
     const messages: ChatCompletionMessageParam[] = [
       { role: "system", content: systemprompt },
-      { role: "user", content: `Answer in a friendly portfolio style. Ask if they wanna know more.\n\nContext:\n${context}\n\nQuestion: ${message}` },
+      { role: "user", content: `Answer in a friendly portfolio style. Ask if they wanna know more.\n\nContext:\n${context}\n\nQuestion: ${trimmedMessage}` },
     ];
 
     const completion = await openai.chat.completions.create({
@@ -152,10 +201,18 @@ app.post("/ask", async (req, res) => {
   }
 });
 
+app.get("/healthz", (_req, res) => {
+  res.json({ status: "ok" });
+});
+
 //
 // 🔹 Start server
 //
-const PORT = 3000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+const parsedPort = Number(process.env.PORT ?? 3000);
+if (Number.isNaN(parsedPort)) {
+  throw new Error("PORT must be a number");
+}
+
+app.listen(parsedPort, () => {
+  console.log(`🚀 Server running on http://localhost:${parsedPort}`);
 });
