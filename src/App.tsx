@@ -307,11 +307,11 @@ function App() {
             onClick={() => setMobileNavOpen(v => !v)}
           >
             <span className="mobile-kebab-icon" aria-hidden="true">
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="9" cy="3.25" r="1.5" fill="currentColor" />
-                <circle cx="9" cy="9" r="1.5" fill="currentColor" />
-                <circle cx="9" cy="14.75" r="1.5" fill="currentColor" />
-              </svg>
+            <svg width="22"  height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="3" y="6" width="18" height="2" rx="1" fill="currentColor" />
+  <rect x="3" y="11" width="18" height="2" rx="1" fill="currentColor" />
+  <rect x="3" y="16" width="18" height="2" rx="1" fill="currentColor" />
+</svg>
             </span>
           </button>
 
