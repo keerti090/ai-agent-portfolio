@@ -228,10 +228,12 @@
   align-items: center;
   border: 1px solid #ffffff20;
   backdrop-filter: blur(8px);
+  box-sizing: border-box;
 }
 
 .text-input {
   flex: 1;
+  min-width: 0;
   background: transparent;
   border: none;
   outline: none;
@@ -252,6 +254,7 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  flex: 0 0 auto;
 }
 
 /* Smaller Icon Size */
@@ -273,6 +276,24 @@
     display: none;
   }
   .textbox {
-    left: 320px;
+    left: calc(12px + env(safe-area-inset-left));
+    right: calc(12px + env(safe-area-inset-right));
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    padding: 12px;
+    border-radius: 12px;
+  }
+  .chat-wrapper {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+  /* Prevent iOS Safari zooming inputs on focus */
+  .text-input {
+    font-size: 16px;
+  }
+  .message.user,
+  .message.assistant {
+    max-width: 92%;
+    margin-left: 0;
+    margin-right: 0;
   }
 }
