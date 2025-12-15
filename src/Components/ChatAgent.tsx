@@ -132,8 +132,15 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import "../style.css";
 
-const DEFAULT_API_BASE = "http://localhost:3000";
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? DEFAULT_API_BASE).replace(/\/$/, "");
+/**
+ * By default we call same-origin endpoints (e.g. `/ask`) so the app works on
+ * mobile devices without hardcoding `localhost`.
+ *
+ * If you deploy the API separately, set `VITE_API_BASE_URL` to the API origin
+ * (e.g. `https://api.example.com`).
+ */
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").trim().replace(/\/$/, "");
+const apiUrl = (pathname: string) => (API_BASE_URL ? `${API_BASE_URL}${pathname}` : pathname);
 
 interface ChatAgentProps {
   messages: { role: string; content: string }[];
@@ -172,7 +179,7 @@ const ChatAgent: React.FC<ChatAgentProps> = ({ messages, setMessages }) => {
   const handleSend = useCallback(async (query: string) => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/ask`, {
+      const response = await fetch(apiUrl("/ask"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
