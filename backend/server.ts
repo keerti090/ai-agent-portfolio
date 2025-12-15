@@ -307,6 +307,7 @@ if (Number.isNaN(parsedPort)) {
   throw new Error("PORT must be a number");
 }
 
-app.listen(parsedPort, () => {
-  console.log(`🚀 Server running on http://localhost:${parsedPort}`);
+const host = (process.env.HOST ?? "0.0.0.0").trim();
+app.listen(parsedPort, host, () => {
+  console.log(`🚀 Server running on http://${host}:${parsedPort}`);
 });
