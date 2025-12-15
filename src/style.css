@@ -14,6 +14,88 @@
 }
 
 /* -----------------------------------
+ Mobile Navigation (Kebab + Drawer)
+----------------------------------- */
+.mobile-kebab {
+  display: none;
+  position: fixed;
+  top: calc(12px + env(safe-area-inset-top));
+  left: calc(12px + env(safe-area-inset-left));
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid #ffffff26;
+  background: #262626cc;
+  backdrop-filter: blur(10px);
+  color: #fff;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+  cursor: pointer;
+}
+
+.mobile-kebab:focus-visible {
+  outline: 2px solid #ffffff66;
+  outline-offset: 2px;
+}
+
+.mobile-nav-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+}
+
+.mobile-nav-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.52);
+  border: none;
+  padding: 0;
+}
+
+.mobile-nav-drawer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: min(320px, calc(100vw - 56px));
+  background: #262626;
+  border-right: 1px solid #ffffff1f;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.5);
+  padding: calc(12px + env(safe-area-inset-top)) 12px 12px calc(12px + env(safe-area-inset-left));
+  transform: translateX(0);
+}
+
+.mobile-nav-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 8px 12px 8px;
+}
+
+.mobile-nav-title {
+  font-size: 14px;
+  opacity: 0.85;
+  letter-spacing: 0.2px;
+}
+
+.mobile-nav-close {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid #ffffff22;
+  background: #ffffff12;
+  color: #fff;
+  cursor: pointer;
+}
+
+.mobile-side-panel {
+  width: 100%;
+  border-right: none;
+  padding: 8px;
+}
+
+/* -----------------------------------
  Side Panel
 ----------------------------------- */
 .side-panel {
@@ -275,6 +357,9 @@
   .side-panel {
     display: none;
   }
+  .mobile-kebab {
+    display: inline-flex;
+  }
   .textbox {
     left: calc(12px + env(safe-area-inset-left));
     right: calc(12px + env(safe-area-inset-right));
@@ -285,6 +370,7 @@
   .chat-wrapper {
     padding-left: 12px;
     padding-right: 12px;
+    padding-top: 64px; /* room for kebab */
   }
   /* Prevent iOS Safari zooming inputs on focus */
   .text-input {

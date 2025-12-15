@@ -144,6 +144,7 @@ function App() {
   const [activeItem, setActiveItem] = useState("Home");
   const [selectedWorkOpen, setSelectedWorkOpen] = useState(false);
   const [activeSubItem, setActiveSubItem] = useState<string | null>(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const [query, setQuery] = useState("");
   const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
@@ -176,6 +177,31 @@ function App() {
     return () => clearTimeout(timer);
   }, [messages.length]);
 
+  // Close the mobile drawer when switching to desktop layout.
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 900px)");
+    const handleChange = (e: MediaQueryListEvent) => {
+      if (!e.matches) setMobileNavOpen(false);
+    };
+    if (typeof mql.addEventListener === "function") {
+      mql.addEventListener("change", handleChange);
+      return () => mql.removeEventListener("change", handleChange);
+    }
+    // Safari fallback
+    mql.addListener(handleChange);
+    return () => mql.removeListener(handleChange);
+  }, []);
+
+  // ESC closes the drawer.
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileNavOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [mobileNavOpen]);
+
   const menuItems = [
     { label: "Home" },
     { label: "Selected Work" },
@@ -202,49 +228,120 @@ function App() {
     "What is Keerti’s design process?"
   ];
 
+  const kebabLabel = mobileNavOpen ? "Close menu" : "Open menu";
+
+  const renderNavItems = (opts?: { inDrawer?: boolean }) => (
+    <>
+      {menuItems.map(item => (
+        <div key={item.label}>
+          <div
+            className={`element ${activeItem === item.label ? "active" : ""}`}
+            onClick={() => {
+              setActiveItem(item.label);
+              setSelectedWorkOpen(item.label === "Selected Work" ? !selectedWorkOpen : false);
+              if (opts?.inDrawer) setMobileNavOpen(false);
+            }}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter" && e.key !== " ") return;
+              setActiveItem(item.label);
+              setSelectedWorkOpen(item.label === "Selected Work" ? !selectedWorkOpen : false);
+              if (opts?.inDrawer) setMobileNavOpen(false);
+            }}
+          >
+            {item.label}
+          </div>
+
+          {item.label === "Selected Work" && selectedWorkOpen && (
+            <div className="selected-work">
+              {workItems.map(group => (
+                <div key={group.year}>
+                  <div className="text-wrapper-2">{group.year}</div>
+                  {group.projects.map(project => (
+                    <div
+                      key={project}
+                      className={`submenu-item ${activeSubItem === project ? "active" : ""}`}
+                      onClick={() => {
+                        setActiveSubItem(project);
+                        if (opts?.inDrawer) setMobileNavOpen(false);
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key !== "Enter" && e.key !== " ") return;
+                        setActiveSubItem(project);
+                        if (opts?.inDrawer) setMobileNavOpen(false);
+                      }}
+                    >
+                      {project}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </>
+  );
+
   return (
     <div className="home">
       {/* Left Navigation */}
       <div className="side-panel">
-        {menuItems.map(item => (
-          <div key={item.label}>
-            <div
-              className={`element ${activeItem === item.label ? "active" : ""}`}
-              onClick={() => {
-                setActiveItem(item.label);
-                setSelectedWorkOpen(item.label === "Selected Work" ? !selectedWorkOpen : false);
-              }}
-            >
-              {item.label}
-            </div>
-
-            {item.label === "Selected Work" && selectedWorkOpen && (
-              <div className="selected-work">
-                {workItems.map(group => (
-                  <div key={group.year}>
-                    <div className="text-wrapper-2">{group.year}</div>
-                    {group.projects.map(project => (
-                      <div
-                        key={project}
-                        className={`submenu-item ${
-                          activeSubItem === project ? "active" : ""
-                        }`}
-                        onClick={() => setActiveSubItem(project)}
-                      >
-                        {project}
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
+        {renderNavItems()}
       </div>
 
       {/* Main Content */}
       <div className="right-side">
         <div className="chat-wrapper">
+
+          {/* Mobile kebab (top-left) */}
+          <button
+            className="mobile-kebab"
+            type="button"
+            aria-label={kebabLabel}
+            aria-expanded={mobileNavOpen}
+            aria-controls="mobile-nav"
+            onClick={() => setMobileNavOpen(v => !v)}
+          >
+            <span className="mobile-kebab-icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="9" cy="3.25" r="1.5" fill="currentColor" />
+                <circle cx="9" cy="9" r="1.5" fill="currentColor" />
+                <circle cx="9" cy="14.75" r="1.5" fill="currentColor" />
+              </svg>
+            </span>
+          </button>
+
+          {/* Mobile Drawer */}
+          {mobileNavOpen && (
+            <div className="mobile-nav-layer" role="presentation">
+              <button
+                type="button"
+                className="mobile-nav-backdrop"
+                aria-label="Close menu"
+                onClick={() => setMobileNavOpen(false)}
+              />
+              <aside id="mobile-nav" className="mobile-nav-drawer" role="dialog" aria-modal="true" aria-label="Navigation">
+                <div className="mobile-nav-header">
+                  <div className="mobile-nav-title">Menu</div>
+                  <button
+                    type="button"
+                    className="mobile-nav-close"
+                    aria-label="Close menu"
+                    onClick={() => setMobileNavOpen(false)}
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="side-panel mobile-side-panel">
+                  {renderNavItems({ inDrawer: true })}
+                </div>
+              </aside>
+            </div>
+          )}
 
           {/* Hero only when Kairo message hasn't been responded to */}
           {showHero && (
