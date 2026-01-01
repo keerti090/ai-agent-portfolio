@@ -43,6 +43,12 @@ app.use(cors({ origin: "*" }));
 
 console.log("🔑 OPENAI KEY:", process.env.OPENAI_API_KEY ? "Loaded" : "❌ Missing");
 
+const CASE_STUDIES: Record<string, { filename: string }> = {
+  search: { filename: "Search-Feature case study.pdf" },
+  zentra: { filename: "Zentra Case study.pdf" },
+  "optym-lms": { filename: "Optym - LMS.pdf" },
+};
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
 });
@@ -302,6 +308,29 @@ app.get("/healthz", (_req, res) => {
 app.get("/health", (_req, res) => {
   res.setHeader("Cache-Control", "no-store");
   res.type("text/plain").send("ok");
+});
+
+// Serve case study PDFs for "preview links" in the UI.
+app.get("/case-studies/:slug", (req, res) => {
+  const { slug } = req.params;
+  const entry = CASE_STUDIES[slug];
+  if (!entry) {
+    return res.status(404).json({
+      error: "Unknown case study. Valid slugs: " + Object.keys(CASE_STUDIES).join(", "),
+    });
+  }
+
+  const resolvedSource = fs.existsSync(PDF_SOURCE) && fs.statSync(PDF_SOURCE).isDirectory()
+    ? path.join(PDF_SOURCE, entry.filename)
+    : path.join(DATA_ROOT, entry.filename);
+
+  if (!fs.existsSync(resolvedSource)) {
+    return res.status(404).json({ error: `Missing PDF on server: ${entry.filename}` });
+  }
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `inline; filename="${entry.filename}"`);
+  return res.sendFile(resolvedSource);
 });
 
 //

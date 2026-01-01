@@ -131,16 +131,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import "../style.css";
-
-/**
- * By default we call same-origin endpoints (e.g. `/ask`) so the app works on
- * mobile devices without hardcoding `localhost`.
- *
- * If you deploy the API separately, set `VITE_API_BASE_URL` to the API origin
- * (e.g. `https://api.example.com`).
- */
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").trim().replace(/\/$/, "");
-const apiUrl = (pathname: string) => (API_BASE_URL ? `${API_BASE_URL}${pathname}` : pathname);
+import { apiUrl } from "../lib/api";
 
 interface ChatAgentProps {
   messages: { role: string; content: string }[];
