@@ -149,9 +149,11 @@ interface ChatAgentProps {
 
 const ChatAgent: React.FC<ChatAgentProps> = ({ messages, setMessages }) => {
   const [loading, setLoading] = useState(false);
+  const [slowNetworkOrColdStart, setSlowNetworkOrColdStart] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const slowTimerRef = useRef<number | null>(null);
 
   // --- Scroll Behavior ---
   useEffect(() => {
@@ -178,6 +180,17 @@ const ChatAgent: React.FC<ChatAgentProps> = ({ messages, setMessages }) => {
 
   const handleSend = useCallback(async (query: string) => {
     setLoading(true);
+    setSlowNetworkOrColdStart(false);
+
+    if (slowTimerRef.current) {
+      window.clearTimeout(slowTimerRef.current);
+      slowTimerRef.current = null;
+    }
+    // If the request takes a few seconds, it’s often a Render free-plan cold start.
+    slowTimerRef.current = window.setTimeout(() => {
+      setSlowNetworkOrColdStart(true);
+    }, 3500);
+
     try {
       const response = await fetch(apiUrl("/ask"), {
         method: "POST",
@@ -212,6 +225,10 @@ const ChatAgent: React.FC<ChatAgentProps> = ({ messages, setMessages }) => {
       ]);
     } finally {
       setLoading(false);
+      if (slowTimerRef.current) {
+        window.clearTimeout(slowTimerRef.current);
+        slowTimerRef.current = null;
+      }
     }
   }, [setMessages]);
 
@@ -230,7 +247,25 @@ const ChatAgent: React.FC<ChatAgentProps> = ({ messages, setMessages }) => {
         </div>
       ))}
 
-      {loading && <div className="message assistant">💬 Typing...</div>}
+      {loading && (
+        <div className="message assistant is-typing" role="status" aria-live="polite">
+          <div className="typing-indicator">
+            <div className="typing-title">
+              {slowNetworkOrColdStart ? "Waking things up…" : "Kairo is thinking…"}
+            </div>
+            <div className="typing-subtitle">
+              {slowNetworkOrColdStart
+                ? "Free hosting can take ~1 min on the first message. Thanks for your patience."
+                : "One sec — I’ll reply shortly."}
+            </div>
+            <div className="typing-dots" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Floating Scroll-to-Bottom Button */}
       {showScrollButton && (
