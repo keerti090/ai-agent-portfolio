@@ -294,7 +294,14 @@ app.post("/ask", async (req, res) => {
 });
 
 app.get("/healthz", (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
   res.json({ status: "ok" });
+});
+
+// Alias for uptime monitors that expect `/health`.
+app.get("/health", (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.type("text/plain").send("ok");
 });
 
 //

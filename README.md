@@ -57,3 +57,14 @@ PORT=3000 node backend/dist/server.js
 3. Run `npm ci && npm run build` during your deployment phase.
 4. Start the API with `npm run start` (which executes `node backend/dist/server.js`).
 5. Serve the frontend bundle in `dist/` from a static host or CDN and point it at the deployed `/ask` endpoint.
+
+## Render free plan: cold start workaround (keep-warm ping)
+Render free services can “sleep” when idle, causing the first request to take ~30–90s.
+
+**Workaround**: set up an uptime monitor to hit a cheap health endpoint every 5–10 minutes.
+
+- **Health URL**: `https://<YOUR-RENDER-SERVICE>.onrender.com/health` (or `/healthz`)
+- **Method**: GET
+- **Interval**: 5 minutes (recommended)
+
+Popular options: UptimeRobot, Better Uptime, Pingdom.
