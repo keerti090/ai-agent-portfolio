@@ -307,7 +307,8 @@ function App() {
               }
 
               if (item.label === "Testimonies") {
-                sendUserMessage("Share a few testimonials or highlights of what teammates/stakeholders say about Keerti.");
+                trackNavEvent("nav_open_external", { label: item.label, href: `${WEBFLOW_PORTFOLIO_BASE}/` });
+                openExternal(`${WEBFLOW_PORTFOLIO_BASE}/`);
               }
 
               if (opts?.inDrawer) setMobileNavOpen(false);
@@ -336,7 +337,8 @@ function App() {
               }
 
               if (item.label === "Testimonies") {
-                sendUserMessage("Share a few testimonials or highlights of what teammates/stakeholders say about Keerti.");
+                trackNavEvent("nav_open_external", { label: item.label, href: `${WEBFLOW_PORTFOLIO_BASE}/`, key: e.key });
+                openExternal(`${WEBFLOW_PORTFOLIO_BASE}/`);
               }
 
               if (opts?.inDrawer) setMobileNavOpen(false);
