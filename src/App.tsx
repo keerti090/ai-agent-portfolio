@@ -150,16 +150,39 @@ function App() {
   const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
   const [showHero, setShowHero] = useState(true);
 
-  const handleSuggestion = (q: string) => {
-    setMessages(prev => [...prev, { role: "user", content: q }]);
+  const sendUserMessage = (text: string) => {
+    setMessages(prev => [...prev, { role: "user", content: text }]);
     setShowHero(false);
+  };
+
+  const handleSuggestion = (q: string) => {
+    sendUserMessage(q);
   };
 
   const handleSubmit = () => {
     if (!query.trim()) return;
-    setMessages(prev => [...prev, { role: "user", content: query }]);
+    sendUserMessage(query);
     setQuery("");
-    setShowHero(false);
+  };
+
+  const trackNavEvent = (event: string, payload: Record<string, unknown>) => {
+    // Lightweight, dependency-free tracking hook.
+    // - Shows in console in dev
+    // - Supports GTM if `dataLayer` exists
+    try {
+      // eslint-disable-next-line no-console
+      console.log(`[nav] ${event}`, payload);
+      const maybeWindow = window as unknown as { dataLayer?: Array<Record<string, unknown>> };
+      if (Array.isArray(maybeWindow.dataLayer)) {
+        maybeWindow.dataLayer.push({ event, ...payload });
+      }
+    } catch {
+      // ignore tracking errors
+    }
+  };
+
+  const openExternal = (href: string) => {
+    window.open(href, "_blank", "noopener,noreferrer");
   };
 
   // Send automatic greeting message from Kairo
@@ -203,20 +226,38 @@ function App() {
   }, [mobileNavOpen]);
 
   const menuItems = [
-    { label: "Home" },
-    { label: "Selected Work" },
-    { label: "About Me" },
-    { label: "Testimonies" }
+    { label: "Home" as const },
+    { label: "Selected Work" as const },
+    { label: "About Me" as const },
+    { label: "Testimonies" as const }
   ];
 
-  const workItems = [
+  const WEBFLOW_PORTFOLIO_BASE = "https://keertis-dapper-site.webflow.io";
+
+  type WorkProject = {
+    label: string;
+    href?: string; // external case study / preview link
+    prompt?: string; // optional: ask Kairo about this project
+  };
+
+  const workItems: Array<{ year: string; projects: WorkProject[] }> = [
     {
       year: "2025",
-      projects: ["Search Global and Module", "Quote Request Flow", "Design System"]
+      projects: [
+        { label: "Search Global and Module", prompt: "Show me Keerti’s Search Global and Module case study." },
+        { label: "Quote Request Flow", prompt: "Walk me through Keerti’s Quote Request Flow project." },
+        { label: "Design System", prompt: "Tell me about Keerti’s Design System work and impact." },
+      ]
     },
     {
       year: "2024 and Older",
-      projects: ["Zentra - Property Management", "Leave Management System", "WomanAid"]
+      // Add your Webflow preview/case-study links here.
+      // If `href` is present, we’ll open it in a new tab.
+      projects: [
+        { label: "Zentra - Property Management", href: `${WEBFLOW_PORTFOLIO_BASE}` },
+        { label: "Leave Management System", href: `${WEBFLOW_PORTFOLIO_BASE}` },
+        { label: "WomanAid", href: `${WEBFLOW_PORTFOLIO_BASE}` },
+      ]
     }
   ];
 
@@ -238,7 +279,28 @@ function App() {
             className={`element ${activeItem === item.label ? "active" : ""}`}
             onClick={() => {
               setActiveItem(item.label);
-              setSelectedWorkOpen(item.label === "Selected Work" ? !selectedWorkOpen : false);
+              trackNavEvent("nav_click", { label: item.label });
+
+              if (item.label === "Home") {
+                setSelectedWorkOpen(false);
+                setActiveSubItem(null);
+                setShowHero(true);
+              }
+
+              if (item.label === "Selected Work") {
+                setSelectedWorkOpen(!selectedWorkOpen);
+              } else {
+                setSelectedWorkOpen(false);
+              }
+
+              if (item.label === "About Me") {
+                sendUserMessage("Tell me about Keerti — her background, strengths, and what she’s best at.");
+              }
+
+              if (item.label === "Testimonies") {
+                sendUserMessage("Share a few testimonials or highlights of what teammates/stakeholders say about Keerti.");
+              }
+
               if (opts?.inDrawer) setMobileNavOpen(false);
             }}
             role="button"
@@ -246,7 +308,28 @@ function App() {
             onKeyDown={(e) => {
               if (e.key !== "Enter" && e.key !== " ") return;
               setActiveItem(item.label);
-              setSelectedWorkOpen(item.label === "Selected Work" ? !selectedWorkOpen : false);
+              trackNavEvent("nav_keydown", { label: item.label, key: e.key });
+
+              if (item.label === "Home") {
+                setSelectedWorkOpen(false);
+                setActiveSubItem(null);
+                setShowHero(true);
+              }
+
+              if (item.label === "Selected Work") {
+                setSelectedWorkOpen(!selectedWorkOpen);
+              } else {
+                setSelectedWorkOpen(false);
+              }
+
+              if (item.label === "About Me") {
+                sendUserMessage("Tell me about Keerti — her background, strengths, and what she’s best at.");
+              }
+
+              if (item.label === "Testimonies") {
+                sendUserMessage("Share a few testimonials or highlights of what teammates/stakeholders say about Keerti.");
+              }
+
               if (opts?.inDrawer) setMobileNavOpen(false);
             }}
           >
@@ -260,21 +343,57 @@ function App() {
                   <div className="text-wrapper-2">{group.year}</div>
                   {group.projects.map(project => (
                     <div
-                      key={project}
-                      className={`submenu-item ${activeSubItem === project ? "active" : ""}`}
+                      key={project.label}
+                      className={`submenu-item ${activeSubItem === project.label ? "active" : ""}`}
                       onClick={() => {
-                        setActiveSubItem(project);
+                        setActiveSubItem(project.label);
+                        trackNavEvent("selected_work_click", {
+                          year: group.year,
+                          project: project.label,
+                          href: project.href ?? null,
+                        });
+
+                        if (project.href) {
+                          openExternal(project.href);
+                          return;
+                        }
+
+                        if (project.prompt) {
+                          sendUserMessage(project.prompt);
+                        }
+
                         if (opts?.inDrawer) setMobileNavOpen(false);
                       }}
                       role="button"
                       tabIndex={0}
                       onKeyDown={(e) => {
                         if (e.key !== "Enter" && e.key !== " ") return;
-                        setActiveSubItem(project);
+                        setActiveSubItem(project.label);
+                        trackNavEvent("selected_work_keydown", {
+                          year: group.year,
+                          project: project.label,
+                          href: project.href ?? null,
+                          key: e.key,
+                        });
+
+                        if (project.href) {
+                          openExternal(project.href);
+                          return;
+                        }
+
+                        if (project.prompt) {
+                          sendUserMessage(project.prompt);
+                        }
+
                         if (opts?.inDrawer) setMobileNavOpen(false);
                       }}
                     >
-                      {project}
+                      <span className="submenu-item-label">{project.label}</span>
+                      {project.href && (
+                        <span className="submenu-item-external" aria-hidden="true" title="Opens in a new tab">
+                          ↗
+                        </span>
+                      )}
                     </div>
                   ))}
                 </div>
