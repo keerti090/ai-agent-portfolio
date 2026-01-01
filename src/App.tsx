@@ -139,6 +139,7 @@ import pic from "./assets/pic.jpg";
 import "./App.css";
 import "./style.css";
 import ChatAgent from './Components/ChatAgent';
+import { apiUrl } from "./lib/api";
 
 function App() {
   const [activeItem, setActiveItem] = useState("Home");
@@ -230,6 +231,17 @@ function App() {
 
   const kebabLabel = mobileNavOpen ? "Close menu" : "Open menu";
 
+  // Preview links for case studies (served by the backend).
+  const projectPreviewLinks: Record<string, string> = {
+    "Search Global and Module": apiUrl("/case-studies/search"),
+    "Zentra - Property Management": apiUrl("/case-studies/zentra"),
+    "Leave Management System": apiUrl("/case-studies/optym-lms"),
+  };
+
+  const openPreviewLink = (url: string) => {
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
   const renderNavItems = (opts?: { inDrawer?: boolean }) => (
     <>
       {menuItems.map(item => (
@@ -264,6 +276,8 @@ function App() {
                       className={`submenu-item ${activeSubItem === project ? "active" : ""}`}
                       onClick={() => {
                         setActiveSubItem(project);
+                        const previewUrl = projectPreviewLinks[project];
+                        if (previewUrl) openPreviewLink(previewUrl);
                         if (opts?.inDrawer) setMobileNavOpen(false);
                       }}
                       role="button"
@@ -271,6 +285,8 @@ function App() {
                       onKeyDown={(e) => {
                         if (e.key !== "Enter" && e.key !== " ") return;
                         setActiveSubItem(project);
+                        const previewUrl = projectPreviewLinks[project];
+                        if (previewUrl) openPreviewLink(previewUrl);
                         if (opts?.inDrawer) setMobileNavOpen(false);
                       }}
                     >

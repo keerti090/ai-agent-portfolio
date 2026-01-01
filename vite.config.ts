@@ -16,6 +16,10 @@ export default defineConfig({
         target: 'http://localhost:3000',
         changeOrigin: true,
       },
+      '/case-studies': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
       '/healthz': {
         target: 'http://localhost:3000',
         changeOrigin: true,
