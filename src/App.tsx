@@ -254,9 +254,18 @@ function App() {
       // Add your Webflow preview/case-study links here.
       // If `href` is present, we’ll open it in a new tab.
       projects: [
-        { label: "Zentra - Property Management", href: `${WEBFLOW_PORTFOLIO_BASE}` },
-        { label: "Leave Management System", href: `${WEBFLOW_PORTFOLIO_BASE}` },
-        { label: "WomanAid", href: `${WEBFLOW_PORTFOLIO_BASE}` },
+        {
+          label: "Zentra - Property Management",
+          href: "https://preview.webflow.com/preview/keertis-dapper-site?utm_medium=preview_link&utm_source=designer&utm_content=keertis-dapper-site&preview=193a28b12b9c763d9cdcb272279c9787&pageId=66031f7d5fe1526d39ea7fc6&workflow=sitePreview",
+        },
+        {
+          label: "Leave Management System",
+          href: "https://preview.webflow.com/preview/keertis-dapper-site?utm_medium=preview_link&utm_source=designer&utm_content=keertis-dapper-site&preview=193a28b12b9c763d9cdcb272279c9787&pageId=6518acd461008515c9c8a4df&workflow=sitePreview",
+        },
+        {
+          label: "WomanAid",
+          href: "https://preview.webflow.com/preview/keertis-dapper-site?utm_medium=preview_link&utm_source=designer&utm_content=keertis-dapper-site&preview=193a28b12b9c763d9cdcb272279c9787&pageId=638a46d51451a314feb98373&workflow=sitePreview",
+        },
       ]
     }
   ];
