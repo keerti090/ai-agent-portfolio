@@ -130,6 +130,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import type { Components } from "react-markdown";
 import "../style.css";
 import { apiUrl } from "../lib/api";
 
@@ -145,6 +146,63 @@ const ChatAgent: React.FC<ChatAgentProps> = ({ messages, setMessages }) => {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const slowTimerRef = useRef<number | null>(null);
+
+  // Custom markdown components for rich media
+  const markdownComponents: Components = {
+    img: ({ node, ...props }) => (
+      <img
+        {...props}
+        className="markdown-image"
+        loading="lazy"
+        alt={props.alt || "Portfolio image"}
+      />
+    ),
+    video: ({ node, ...props }) => (
+      <video
+        {...props}
+        className="markdown-video"
+        controls
+        playsInline
+      />
+    ),
+    a: ({ node, ...props }) => {
+      const href = props.href || "";
+      // Check if link is to an image or video
+      const isImage = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(href);
+      const isVideo = /\.(mp4|webm|ogg|mov)$/i.test(href);
+      
+      if (isImage) {
+        return (
+          <img
+            src={href}
+            alt={props.children?.toString() || "Portfolio image"}
+            className="markdown-image"
+            loading="lazy"
+          />
+        );
+      }
+      
+      if (isVideo) {
+        return (
+          <video
+            src={href}
+            className="markdown-video"
+            controls
+            playsInline
+          />
+        );
+      }
+      
+      return (
+        <a
+          {...props}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="markdown-link"
+        />
+      );
+    },
+  };
 
   // --- Scroll Behavior ---
   useEffect(() => {
@@ -234,7 +292,12 @@ const ChatAgent: React.FC<ChatAgentProps> = ({ messages, setMessages }) => {
     <div className="chat-container" ref={containerRef} onScroll={handleScroll}>
       {messages.map((msg, idx) => (
         <div key={idx} className={`message ${msg.role}`}>
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+          <ReactMarkdown 
+            remarkPlugins={[remarkGfm]}
+            components={markdownComponents}
+          >
+            {msg.content}
+          </ReactMarkdown>
         </div>
       ))}
 
