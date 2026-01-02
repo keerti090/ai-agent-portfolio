@@ -209,7 +209,7 @@ function App() {
     { label: "Home" },
     { label: "Selected Work" },
     { label: "About Me" },
-    { label: "Testimonies" }
+    { label: "Contact" }
   ];
 
   const workItems = [
@@ -269,7 +269,7 @@ function App() {
                 goToAboutMe();
                 return;
               }
-              if (item.label === "Testimonies") {
+              if (item.label === "Contact") {
                 setActiveItem(item.label);
                 if (opts?.inDrawer) setMobileNavOpen(false);
                 goToLinkedIn();
@@ -288,7 +288,7 @@ function App() {
                 goToAboutMe();
                 return;
               }
-              if (item.label === "Testimonies") {
+              if (item.label === "Contact") {
                 setActiveItem(item.label);
                 if (opts?.inDrawer) setMobileNavOpen(false);
                 goToLinkedIn();
