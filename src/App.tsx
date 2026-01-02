@@ -150,6 +150,7 @@ function App() {
   const [query, setQuery] = useState("");
   const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
   const [showHero, setShowHero] = useState(true);
+  const aboutMeUrl = "https://keertis-dapper-site.webflow.io/about";
 
   const handleSuggestion = (q: string) => {
     setMessages(prev => [...prev, { role: "user", content: q }]);
@@ -247,6 +248,10 @@ function App() {
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
+  const goToAboutMe = () => {
+    window.location.assign(aboutMeUrl);
+  };
+
   const renderNavItems = (opts?: { inDrawer?: boolean }) => (
     <>
       {menuItems.map(item => (
@@ -254,6 +259,11 @@ function App() {
           <div
             className={`element ${activeItem === item.label ? "active" : ""}`}
             onClick={() => {
+              if (item.label === "About Me") {
+                if (opts?.inDrawer) setMobileNavOpen(false);
+                goToAboutMe();
+                return;
+              }
               setActiveItem(item.label);
               setSelectedWorkOpen(item.label === "Selected Work" ? !selectedWorkOpen : false);
               if (opts?.inDrawer) setMobileNavOpen(false);
@@ -262,6 +272,11 @@ function App() {
             tabIndex={0}
             onKeyDown={(e) => {
               if (e.key !== "Enter" && e.key !== " ") return;
+              if (item.label === "About Me") {
+                if (opts?.inDrawer) setMobileNavOpen(false);
+                goToAboutMe();
+                return;
+              }
               setActiveItem(item.label);
               setSelectedWorkOpen(item.label === "Selected Work" ? !selectedWorkOpen : false);
               if (opts?.inDrawer) setMobileNavOpen(false);
