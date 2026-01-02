@@ -231,11 +231,16 @@ function App() {
 
   const kebabLabel = mobileNavOpen ? "Close menu" : "Open menu";
 
-  // Preview links for case studies (served by the backend).
+  // Preview links for case studies.
+  // 2024 work should take users to the Webflow preview pages.
   const projectPreviewLinks: Record<string, string> = {
+    // 2025 (served by backend)
     "Search Global and Module": apiUrl("/case-studies/search"),
-    "Zentra - Property Management": apiUrl("/case-studies/zentra"),
-    "Leave Management System": apiUrl("/case-studies/optym-lms"),
+
+    // 2024 (Webflow previews)
+    "Zentra - Property Management": "https://preview.webflow.com/preview/keertis-dapper-site?utm_medium=preview_link&utm_source=designer&utm_content=keertis-dapper-site&preview=193a28b12b9c763d9cdcb272279c9787&pageId=66031f7d5fe1526d39ea7fc6&workflow=sitePreview",
+    "Leave Management System": "https://preview.webflow.com/preview/keertis-dapper-site?utm_medium=preview_link&utm_source=designer&utm_content=keertis-dapper-site&preview=193a28b12b9c763d9cdcb272279c9787&pageId=6518acd461008515c9c8a4df&workflow=sitePreview",
+    "WomanAid": "https://preview.webflow.com/preview/keertis-dapper-site?utm_medium=preview_link&utm_source=designer&utm_content=keertis-dapper-site&preview=193a28b12b9c763d9cdcb272279c9787&pageId=638a46d51451a314feb98373&workflow=sitePreview",
   };
 
   const openPreviewLink = (url: string) => {
