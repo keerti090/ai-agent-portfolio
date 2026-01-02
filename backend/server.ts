@@ -210,8 +210,8 @@ async function buildVectorStore(): Promise<MemoryVectorStore> {
   // 🔸 SPLIT CHUNKS
   //
   const splitter = new RecursiveCharacterTextSplitter({
-    chunkSize: 1200,
-    chunkOverlap: 200,
+    chunkSize: 2000,
+    chunkOverlap: 400,
   });
 
   const splitDocs = await splitter.splitDocuments(docs);
@@ -259,8 +259,8 @@ app.post("/ask", async (req, res) => {
     const vectorstore = await getVectorStore();
     console.log("Vector store ready with docs:", vectorstore.memoryVectors.length);
 
-    // Search with scores
-    const searchResults = await vectorstore.similaritySearchWithScore(trimmedMessage, 5);
+    // Search with scores - retrieve more chunks for better context
+    const searchResults = await vectorstore.similaritySearchWithScore(trimmedMessage, 8);
 
     searchResults.forEach(([doc], i) => {
       console.log(`--- MATCH ${i + 1}`);
@@ -278,7 +278,17 @@ app.post("/ask", async (req, res) => {
     //
     const messages: ChatCompletionMessageParam[] = [
       { role: "system", content: systemprompt },
-      { role: "user", content: `Answer in a friendly portfolio style. Ask if they wanna know more.\n\nContext:\n${context}\n\nQuestion: ${trimmedMessage}` },
+      { 
+        role: "user", 
+        content: `Use the context below to answer with SPECIFIC, CONCRETE details from Keerti's work. Extract actual project names, numbers, outcomes, and methodologies. NEVER use placeholder text or generic descriptions.
+
+Context from case studies:
+${context}
+
+User Question: ${trimmedMessage}
+
+Remember: Be specific, use real data from the context, and avoid vague language.` 
+      },
     ];
 
     //
@@ -286,7 +296,7 @@ app.post("/ask", async (req, res) => {
     //
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      temperature: 0.3,
+      temperature: 0.5,
       messages,
     });
 
