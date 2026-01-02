@@ -25,7 +25,6 @@
 //     { label: 'Home' },
 //     { label: 'Selected Work' },
 //     { label: 'About Me' },
-//     { label: 'Testimonies' }
 //   ];
 
 //   const workItems = [
@@ -151,7 +150,6 @@ function App() {
   const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
   const [showHero, setShowHero] = useState(true);
   const aboutMeUrl = "https://keertis-dapper-site.webflow.io/about";
-  const testimoniesUrl = "https://keertis-dapper-site.webflow.io/testimonies";
   const linkedInUrl = "https://www.linkedin.com/in/keertihegde/";
 
   const handleSuggestion = (q: string) => {
@@ -210,7 +208,6 @@ function App() {
     { label: "Home" },
     { label: "Selected Work" },
     { label: "About Me" },
-    { label: "Testimonies" },
     { label: "Contact" }
   ];
 
@@ -259,10 +256,6 @@ function App() {
     window.open(linkedInUrl, "_blank", "noopener,noreferrer");
   };
 
-  const goToTestimonies = () => {
-    window.open(testimoniesUrl, "_blank", "noopener,noreferrer");
-  };
-
   const renderNavItems = (opts?: { inDrawer?: boolean }) => (
     <>
       {menuItems.map(item => (
@@ -276,11 +269,6 @@ function App() {
               if (item.label === "About Me") {
                 if (isInDrawer) setMobileNavOpen(false);
                 goToAboutMe();
-                return;
-              }
-              if (item.label === "Testimonies") {
-                if (isInDrawer) setMobileNavOpen(false);
-                goToTestimonies();
                 return;
               }
               if (item.label === "Contact") {
@@ -312,11 +300,6 @@ function App() {
               if (item.label === "About Me") {
                 if (isInDrawer) setMobileNavOpen(false);
                 goToAboutMe();
-                return;
-              }
-              if (item.label === "Testimonies") {
-                if (isInDrawer) setMobileNavOpen(false);
-                goToTestimonies();
                 return;
               }
               if (item.label === "Contact") {
