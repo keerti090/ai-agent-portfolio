@@ -151,6 +151,7 @@ function App() {
   const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
   const [showHero, setShowHero] = useState(true);
   const aboutMeUrl = "https://keertis-dapper-site.webflow.io/about";
+  const testimoniesUrl = "https://keertis-dapper-site.webflow.io/testimonies";
   const linkedInUrl = "https://www.linkedin.com/in/keertihegde/";
 
   const handleSuggestion = (q: string) => {
@@ -209,6 +210,7 @@ function App() {
     { label: "Home" },
     { label: "Selected Work" },
     { label: "About Me" },
+    { label: "Testimonies" },
     { label: "Contact" }
   ];
 
@@ -257,6 +259,10 @@ function App() {
     window.open(linkedInUrl, "_blank", "noopener,noreferrer");
   };
 
+  const goToTestimonies = () => {
+    window.open(testimoniesUrl, "_blank", "noopener,noreferrer");
+  };
+
   const renderNavItems = (opts?: { inDrawer?: boolean }) => (
     <>
       {menuItems.map(item => (
@@ -264,39 +270,73 @@ function App() {
           <div
             className={`element ${activeItem === item.label ? "active" : ""}`}
             onClick={() => {
+              const isInDrawer = Boolean(opts?.inDrawer);
+              const isExpandable = item.label === "Selected Work";
+
               if (item.label === "About Me") {
-                if (opts?.inDrawer) setMobileNavOpen(false);
+                if (isInDrawer) setMobileNavOpen(false);
                 goToAboutMe();
+                return;
+              }
+              if (item.label === "Testimonies") {
+                if (isInDrawer) setMobileNavOpen(false);
+                goToTestimonies();
                 return;
               }
               if (item.label === "Contact") {
                 setActiveItem(item.label);
-                if (opts?.inDrawer) setMobileNavOpen(false);
+                if (isInDrawer) setMobileNavOpen(false);
                 goToLinkedIn();
                 return;
               }
+              if (item.label === "Home") {
+                setActiveItem(item.label);
+                setSelectedWorkOpen(false);
+                setShowHero(true);
+                if (isInDrawer) setMobileNavOpen(false);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+                return;
+              }
               setActiveItem(item.label);
-              setSelectedWorkOpen(item.label === "Selected Work" ? !selectedWorkOpen : false);
-              if (opts?.inDrawer) setMobileNavOpen(false);
+              setSelectedWorkOpen(prev => (item.label === "Selected Work" ? !prev : false));
+              // Keep drawer open for expandable menus so users can see submenu items.
+              if (isInDrawer && !isExpandable) setMobileNavOpen(false);
             }}
             role="button"
             tabIndex={0}
             onKeyDown={(e) => {
               if (e.key !== "Enter" && e.key !== " ") return;
+              const isInDrawer = Boolean(opts?.inDrawer);
+              const isExpandable = item.label === "Selected Work";
+
               if (item.label === "About Me") {
-                if (opts?.inDrawer) setMobileNavOpen(false);
+                if (isInDrawer) setMobileNavOpen(false);
                 goToAboutMe();
+                return;
+              }
+              if (item.label === "Testimonies") {
+                if (isInDrawer) setMobileNavOpen(false);
+                goToTestimonies();
                 return;
               }
               if (item.label === "Contact") {
                 setActiveItem(item.label);
-                if (opts?.inDrawer) setMobileNavOpen(false);
+                if (isInDrawer) setMobileNavOpen(false);
                 goToLinkedIn();
                 return;
               }
+              if (item.label === "Home") {
+                setActiveItem(item.label);
+                setSelectedWorkOpen(false);
+                setShowHero(true);
+                if (isInDrawer) setMobileNavOpen(false);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+                return;
+              }
               setActiveItem(item.label);
-              setSelectedWorkOpen(item.label === "Selected Work" ? !selectedWorkOpen : false);
-              if (opts?.inDrawer) setMobileNavOpen(false);
+              setSelectedWorkOpen(prev => (item.label === "Selected Work" ? !prev : false));
+              // Keep drawer open for expandable menus so users can see submenu items.
+              if (isInDrawer && !isExpandable) setMobileNavOpen(false);
             }}
           >
             {item.label}
