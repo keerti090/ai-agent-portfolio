@@ -249,7 +249,7 @@ function App() {
   };
 
   const goToAboutMe = () => {
-    window.location.assign(aboutMeUrl);
+    window.open(aboutMeUrl, "_blank", "noopener,noreferrer");
   };
 
   const goToLinkedIn = () => {
