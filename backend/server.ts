@@ -26,6 +26,8 @@ if (missingEnv.length > 0) {
   throw new Error(`Missing required environment variables: ${missingEnv.join(", ")}`);
 }
 
+const DEFAULT_LINKEDIN_URL = "https://www.linkedin.com/in/keertihegde/";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -42,6 +44,7 @@ app.use(bodyParser.json());
 app.use(cors({ origin: "*" }));
 
 console.log("🔑 OPENAI KEY:", process.env.OPENAI_API_KEY ? "Loaded" : "❌ Missing");
+console.log("📩 CONTACT EMAIL:", process.env.CONTACT_EMAIL ? "Loaded" : "Not set");
 
 const CASE_STUDIES: Record<string, { filename: string }> = {
   search: { filename: "Search-Feature case study.pdf" },
@@ -256,6 +259,29 @@ app.post("/ask", async (req, res) => {
     const trimmedMessage = message.trim();
     console.log("Received message:", trimmedMessage);
 
+    const contactEmail = (process.env.CONTACT_EMAIL ?? "").trim();
+    const contactLinkedInUrl = (process.env.CONTACT_LINKEDIN_URL ?? DEFAULT_LINKEDIN_URL).trim();
+
+    const isContactIntent = /\b(contact|email|e-mail|reach|connect|schedule|shedule|book|booking|call|meeting|chat|talk|interview)\b/i.test(
+      trimmedMessage
+    );
+
+    // Hard guarantee: if they ask for contact/scheduling, return contact info immediately.
+    if (isContactIntent) {
+      const lines: string[] = ["## Contact Keerti"];
+      if (contactEmail) {
+        lines.push(`- **Email (best)**: ${contactEmail}`);
+        lines.push("", "If you’d like to schedule a call, please email me with:");
+        lines.push("- your name + company");
+        lines.push("- what you’d like to discuss");
+        lines.push("- 2–3 time windows + your timezone");
+      } else {
+        lines.push(`- **LinkedIn**: ${contactLinkedInUrl}`);
+        lines.push("", "Email isn’t configured on this site yet — if you want email support here, set `CONTACT_EMAIL` on the server.");
+      }
+      return res.json({ answer: lines.join("\n") });
+    }
+
     const vectorstore = await getVectorStore();
     console.log("Vector store ready with docs:", vectorstore.memoryVectors.length);
 
@@ -276,8 +302,14 @@ app.post("/ask", async (req, res) => {
     //
     // 🔸 CREATE SYSTEM + USER MESSAGE
     //
+    const contactInfoLines: string[] = [
+      "CONTACT INFO (use this when the user asks to contact/schedule):",
+      contactEmail ? `Email: ${contactEmail}` : "Email: (not provided)",
+      `LinkedIn: ${contactLinkedInUrl}`,
+    ];
     const messages: ChatCompletionMessageParam[] = [
       { role: "system", content: systemprompt },
+      { role: "system", content: contactInfoLines.join("\n") },
       { 
         role: "user", 
         content: `Use the context below to answer with SPECIFIC, CONCRETE details from Keerti's work. Extract actual project names, numbers, outcomes, and methodologies. NEVER use placeholder text or generic descriptions.

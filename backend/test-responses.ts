@@ -91,7 +91,7 @@ async function testAgent() {
         body: JSON.stringify({ message: test.prompt }),
       });
 
-      const data = await response.json();
+      const data = (await response.json()) as { answer?: string };
       const answer = data.answer || "";
 
       console.log(`\n💬 Response (first 200 chars):\n${answer.slice(0, 200)}...\n`);

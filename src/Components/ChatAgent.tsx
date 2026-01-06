@@ -149,23 +149,30 @@ const ChatAgent: React.FC<ChatAgentProps> = ({ messages, setMessages }) => {
 
   // Custom markdown components for rich media
   const markdownComponents: Components = {
-    img: ({ node, ...props }) => (
-      <img
-        {...props}
-        className="markdown-image"
-        loading="lazy"
-        alt={props.alt || "Portfolio image"}
-      />
-    ),
-    video: ({ node, ...props }) => (
-      <video
-        {...props}
-        className="markdown-video"
-        controls
-        playsInline
-      />
-    ),
+    img: ({ node, ...props }) => {
+      void node;
+      return (
+        <img
+          {...props}
+          className="markdown-image"
+          loading="lazy"
+          alt={props.alt || "Portfolio image"}
+        />
+      );
+    },
+    video: ({ node, ...props }) => {
+      void node;
+      return (
+        <video
+          {...props}
+          className="markdown-video"
+          controls
+          playsInline
+        />
+      );
+    },
     a: ({ node, ...props }) => {
+      void node;
       const href = props.href || "";
       // Check if link is to an image or video
       const isImage = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(href);
