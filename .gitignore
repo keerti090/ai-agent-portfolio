@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local query logs (generated at runtime)
+/backend/data/query-logs/

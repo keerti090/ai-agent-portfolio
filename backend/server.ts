@@ -17,6 +17,7 @@ import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import { OpenAIEmbeddings } from "@langchain/openai";
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import { systemprompt } from "./systemprompt.js";
+import { QueryLogger } from "./query-logger.js";
 
 import OpenAI from "openai";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
@@ -95,6 +96,8 @@ app.use(cors({ origin: "*" }));
 
 console.log("🔑 OPENAI KEY:", process.env.OPENAI_API_KEY ? "Loaded" : "❌ Missing");
 console.log("📩 CONTACT EMAIL:", process.env.CONTACT_EMAIL ? "Loaded" : "Not set");
+const queryLogger = new QueryLogger(DATA_ROOT);
+console.log("🧾 QUERY LOGGING:", queryLogger.enabled() ? "Enabled" : "Disabled");
 
 const CASE_STUDIES: Record<string, { filename: string }> = {
   search: { filename: "Search-Feature case study.pdf" },
@@ -311,6 +314,9 @@ app.post("/ask", async (req, res) => {
 
     pruneOldContactSessions();
     const sessionKey = getSessionKey(req);
+    queryLogger.logFromRequest(req, trimmedMessage, sessionKey);
+    void queryLogger.maybeEmailImmediate(sessionKey);
+
     const contactEmail = (process.env.CONTACT_EMAIL ?? DEFAULT_CONTACT_EMAIL).trim();
     const contactLinkedInUrl = (process.env.CONTACT_LINKEDIN_URL ?? DEFAULT_LINKEDIN_URL).trim();
 
@@ -444,6 +450,42 @@ app.get("/healthz", (_req, res) => {
   res.json({ status: "ok" });
 });
 
+app.get("/admin/query-logs/status", (req, res) => {
+  if (!queryLogger.isAuthorized(req)) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  return res.json(queryLogger.getStatus());
+});
+
+app.get("/admin/query-logs/download", (req, res) => {
+  if (!queryLogger.isAuthorized(req)) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  const logPath = queryLogger.logPath();
+  if (!fs.existsSync(logPath)) {
+    return res.status(404).json({ error: "No query log file yet." });
+  }
+
+  res.setHeader("Content-Type", "application/x-ndjson");
+  res.setHeader("Content-Disposition", `attachment; filename="queries.ndjson"`);
+  return res.sendFile(logPath);
+});
+
+app.post("/admin/query-logs/send", async (req, res) => {
+  if (!queryLogger.isAuthorized(req)) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  try {
+    const result = await queryLogger.sendManualEmail();
+    return res.json({ ok: true, ...result });
+  } catch (error) {
+    console.error("🔥 /admin/query-logs/send error:", error);
+    return res.status(500).json({ ok: false, error: error instanceof Error ? error.message : "Failed to send email." });
+  }
+});
+
 // Alias for uptime monitors that expect `/health`.
 app.get("/health", (_req, res) => {
   res.setHeader("Cache-Control", "no-store");
@@ -487,3 +529,4 @@ const host = (process.env.HOST ?? "0.0.0.0").trim();
 app.listen(parsedPort, host, () => {
   console.log(`🚀 Server running on http://${host}:${parsedPort}`);
 });
+queryLogger.startDailyDigestScheduler();
