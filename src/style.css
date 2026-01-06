@@ -524,7 +524,8 @@
 
 /* Responsive Tweaks */
 @media (max-width: 900px) {
-  .side-panel {
+  /* Hide only the desktop left sidebar (mobile drawer reuses .side-panel) */
+  .home > .side-panel {
     display: none;
   }
   .mobile-kebab {
