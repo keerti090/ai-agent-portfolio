@@ -139,6 +139,23 @@ interface ChatAgentProps {
   setMessages: React.Dispatch<React.SetStateAction<{ role: string; content: string }[]>>;
 }
 
+function getOrCreateSessionId(): string {
+  const key = "kairo_session_id";
+  try {
+    const existing = window.localStorage.getItem(key);
+    if (existing && existing.trim()) return existing.trim();
+    const created =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `sid_${Math.random().toString(16).slice(2)}_${Date.now()}`;
+    window.localStorage.setItem(key, created);
+    return created;
+  } catch {
+    // If storage is blocked, fall back to an in-memory id per page load.
+    return `sid_${Math.random().toString(16).slice(2)}_${Date.now()}`;
+  }
+}
+
 const ChatAgent: React.FC<ChatAgentProps> = ({ messages, setMessages }) => {
   const [loading, setLoading] = useState(false);
   const [slowNetworkOrColdStart, setSlowNetworkOrColdStart] = useState(false);
@@ -146,26 +163,34 @@ const ChatAgent: React.FC<ChatAgentProps> = ({ messages, setMessages }) => {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const slowTimerRef = useRef<number | null>(null);
+  const sessionIdRef = useRef<string>(getOrCreateSessionId());
 
   // Custom markdown components for rich media
   const markdownComponents: Components = {
-    img: ({ node, ...props }) => (
-      <img
-        {...props}
-        className="markdown-image"
-        loading="lazy"
-        alt={props.alt || "Portfolio image"}
-      />
-    ),
-    video: ({ node, ...props }) => (
-      <video
-        {...props}
-        className="markdown-video"
-        controls
-        playsInline
-      />
-    ),
+    img: ({ node, ...props }) => {
+      void node;
+      return (
+        <img
+          {...props}
+          className="markdown-image"
+          loading="lazy"
+          alt={props.alt || "Portfolio image"}
+        />
+      );
+    },
+    video: ({ node, ...props }) => {
+      void node;
+      return (
+        <video
+          {...props}
+          className="markdown-video"
+          controls
+          playsInline
+        />
+      );
+    },
     a: ({ node, ...props }) => {
+      void node;
       const href = props.href || "";
       // Check if link is to an image or video
       const isImage = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(href);
@@ -246,7 +271,7 @@ const ChatAgent: React.FC<ChatAgentProps> = ({ messages, setMessages }) => {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ message: query }),
+        body: JSON.stringify({ message: query, sessionId: sessionIdRef.current }),
       });
       console.log("Sent query:", response);
 
