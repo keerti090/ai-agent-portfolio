@@ -78,6 +78,239 @@ function getMailer() {
   });
 }
 
+type QueryLogMode = "off" | "immediate" | "daily";
+
+type QueryLogEntry = {
+  timestamp: string; // ISO string
+  message: string;
+  sessionId?: string;
+  sessionKey: string;
+  ip?: string;
+  userAgent?: string;
+  referer?: string;
+};
+
+type QueryLogState = {
+  lastEmailedByte?: number;
+  lastDailySentYmd?: string; // YYYY-MM-DD (server local time)
+};
+
+function isTruthyEnv(value: string | undefined, defaultValue = false): boolean {
+  if (value == null) return defaultValue;
+  const normalized = value.trim().toLowerCase();
+  if (["1", "true", "yes", "y", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "n", "off"].includes(normalized)) return false;
+  return defaultValue;
+}
+
+function getQueryLogMode(): QueryLogMode {
+  const raw = (process.env.QUERY_LOG_EMAIL_MODE ?? "off").trim().toLowerCase();
+  if (raw === "immediate" || raw === "daily" || raw === "off") return raw;
+  return "off";
+}
+
+function getQueryLogDir(dataRoot: string): string {
+  const override = (process.env.QUERY_LOG_DIR ?? "").trim();
+  return override ? path.resolve(override) : path.join(dataRoot, "query-logs");
+}
+
+function ensureDirExists(dirPath: string) {
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
+  }
+}
+
+function getQueryLogPath(queryLogDir: string): string {
+  return path.join(queryLogDir, "queries.ndjson");
+}
+
+function getQueryLogStatePath(queryLogDir: string): string {
+  return path.join(queryLogDir, "state.json");
+}
+
+function readQueryLogState(queryLogDir: string): QueryLogState {
+  const statePath = getQueryLogStatePath(queryLogDir);
+  try {
+    if (!fs.existsSync(statePath)) return {};
+    const raw = fs.readFileSync(statePath, "utf8");
+    const parsed = JSON.parse(raw) as unknown;
+    if (typeof parsed !== "object" || parsed === null) return {};
+    const candidate = parsed as QueryLogState;
+    return {
+      lastEmailedByte: typeof candidate.lastEmailedByte === "number" ? candidate.lastEmailedByte : undefined,
+      lastDailySentYmd: typeof candidate.lastDailySentYmd === "string" ? candidate.lastDailySentYmd : undefined,
+    };
+  } catch (error) {
+    console.error("⚠️ Failed reading query log state:", error);
+    return {};
+  }
+}
+
+function writeQueryLogState(queryLogDir: string, state: QueryLogState) {
+  const statePath = getQueryLogStatePath(queryLogDir);
+  const tmpPath = `${statePath}.tmp`;
+  try {
+    fs.writeFileSync(tmpPath, JSON.stringify(state, null, 2), "utf8");
+    fs.renameSync(tmpPath, statePath);
+  } catch (error) {
+    console.error("⚠️ Failed writing query log state:", error);
+    try {
+      if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
+    } catch {
+      // ignore
+    }
+  }
+}
+
+function maybeAppendQueryLog(
+  entry: QueryLogEntry,
+  queryLogDir: string,
+) {
+  const enabled = isTruthyEnv(process.env.QUERY_LOG_ENABLED, false);
+  if (!enabled) return;
+
+  try {
+    ensureDirExists(queryLogDir);
+    const logPath = getQueryLogPath(queryLogDir);
+    fs.appendFileSync(logPath, `${JSON.stringify(entry)}\n`, "utf8");
+  } catch (error) {
+    console.error("⚠️ Failed appending query log:", error);
+  }
+}
+
+function requireAdminToken(req: express.Request): boolean {
+  const token = (process.env.QUERY_LOG_ADMIN_TOKEN ?? "").trim();
+  if (!token) return false;
+  const header = (req.headers.authorization ?? "").trim();
+  if (header.toLowerCase().startsWith("bearer ")) {
+    return header.slice("bearer ".length).trim() === token;
+  }
+  // Allow query param for quick manual use.
+  if (typeof req.query.token === "string" && req.query.token.trim()) {
+    return req.query.token.trim() === token;
+  }
+  return false;
+}
+
+function getYmdLocal(date = new Date()): string {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+async function readFileRangeBytes(
+  filePath: string,
+  start: number,
+  endExclusive: number,
+): Promise<Buffer> {
+  const length = Math.max(0, endExclusive - start);
+  if (length === 0) return Buffer.from([]);
+  const handle = await fs.promises.open(filePath, "r");
+  try {
+    const buffer = Buffer.alloc(length);
+    await handle.read(buffer, 0, length, start);
+    return buffer;
+  } finally {
+    await handle.close();
+  }
+}
+
+async function sendQueryLogEmail(opts: {
+  reason: "immediate" | "daily" | "manual";
+  queryLogDir: string;
+  sessionKeyForSubject?: string;
+}) {
+  const mailer = getMailer();
+  if (!mailer) {
+    throw new Error("SMTP is not configured (SMTP_HOST/SMTP_USER/SMTP_PASS missing).");
+  }
+
+  const to = (process.env.QUERY_LOG_EMAIL_TO ?? "").trim();
+  if (!to) {
+    throw new Error("QUERY_LOG_EMAIL_TO is missing.");
+  }
+
+  const from = (process.env.QUERY_LOG_EMAIL_FROM ?? process.env.SMTP_FROM ?? process.env.SMTP_USER ?? "").trim();
+  if (!from) {
+    throw new Error("QUERY_LOG_EMAIL_FROM (or SMTP_FROM/SMTP_USER) is missing.");
+  }
+
+  ensureDirExists(opts.queryLogDir);
+  const logPath = getQueryLogPath(opts.queryLogDir);
+  if (!fs.existsSync(logPath)) {
+    // Nothing to send.
+    return { sent: false, bytes: 0, truncated: false };
+  }
+
+  const mode = getQueryLogMode();
+  const maxBytes = Number(process.env.QUERY_LOG_EMAIL_MAX_BYTES ?? "1048576");
+  const safeMaxBytes = Number.isFinite(maxBytes) && maxBytes > 0 ? maxBytes : 1048576;
+
+  const stat = fs.statSync(logPath);
+  const state = readQueryLogState(opts.queryLogDir);
+  const defaultStart = 0;
+  const startOffset =
+    mode === "immediate"
+      ? Math.max(0, stat.size - safeMaxBytes)
+      : typeof state.lastEmailedByte === "number"
+        ? Math.min(Math.max(0, state.lastEmailedByte), stat.size)
+        : defaultStart;
+
+  let start = startOffset;
+  const end = stat.size;
+  let truncated = false;
+
+  if (end - start > safeMaxBytes) {
+    start = Math.max(0, end - safeMaxBytes);
+    truncated = true;
+  }
+
+  const bytes = await readFileRangeBytes(logPath, start, end);
+  if (bytes.length === 0) {
+    return { sent: false, bytes: 0, truncated: false };
+  }
+
+  const subjectBase = (process.env.QUERY_LOG_EMAIL_SUBJECT ?? "Kairo — user query log").trim() || "Kairo — user query log";
+  const subjectSuffix = opts.sessionKeyForSubject ? ` (${opts.sessionKeyForSubject})` : "";
+  const subject = `${subjectBase} — ${getYmdLocal()} [${opts.reason}]${subjectSuffix}`;
+
+  const lineCount = bytes.toString("utf8").split("\n").filter(Boolean).length;
+  const bodyLines: string[] = [
+    `Reason: ${opts.reason}`,
+    `Date: ${getYmdLocal()}`,
+    `Entries in attachment (approx): ${lineCount}`,
+    `Bytes attached: ${bytes.length}`,
+  ];
+  if (truncated) {
+    bodyLines.push("");
+    bodyLines.push(`NOTE: Attachment was truncated to last ${safeMaxBytes} bytes.`);
+  }
+
+  await mailer.sendMail({
+    from,
+    to,
+    subject,
+    text: bodyLines.join("\n"),
+    attachments: [
+      {
+        filename: `queries-${getYmdLocal()}.ndjson`,
+        content: bytes,
+        contentType: "application/x-ndjson",
+      },
+    ],
+  });
+
+  // Mark as emailed up to current EOF (best-effort).
+  writeQueryLogState(opts.queryLogDir, {
+    ...state,
+    lastEmailedByte: end,
+    lastDailySentYmd: opts.reason === "daily" ? getYmdLocal() : state.lastDailySentYmd,
+  });
+
+  return { sent: true, bytes: bytes.length, truncated };
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -95,6 +328,7 @@ app.use(cors({ origin: "*" }));
 
 console.log("🔑 OPENAI KEY:", process.env.OPENAI_API_KEY ? "Loaded" : "❌ Missing");
 console.log("📩 CONTACT EMAIL:", process.env.CONTACT_EMAIL ? "Loaded" : "Not set");
+console.log("🧾 QUERY LOGGING:", isTruthyEnv(process.env.QUERY_LOG_ENABLED, false) ? "Enabled" : "Disabled");
 
 const CASE_STUDIES: Record<string, { filename: string }> = {
   search: { filename: "Search-Feature case study.pdf" },
@@ -311,6 +545,43 @@ app.post("/ask", async (req, res) => {
 
     pruneOldContactSessions();
     const sessionKey = getSessionKey(req);
+    const bodySessionId =
+      typeof req.body === "object" && req.body !== null && "sessionId" in (req.body as Record<string, unknown>)
+        ? (req.body as { sessionId?: unknown }).sessionId
+        : undefined;
+    const sessionId = typeof bodySessionId === "string" && bodySessionId.trim() ? bodySessionId.trim() : undefined;
+
+    const queryLogDir = getQueryLogDir(DATA_ROOT);
+    maybeAppendQueryLog(
+      {
+        timestamp: new Date().toISOString(),
+        message: trimmedMessage,
+        sessionId,
+        sessionKey,
+        ip: req.ip,
+        userAgent: typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : undefined,
+        referer: typeof req.headers.referer === "string" ? req.headers.referer : undefined,
+      },
+      queryLogDir,
+    );
+
+    // Optional: email each query right away (useful for quick training loops).
+    if (getQueryLogMode() === "immediate" && isTruthyEnv(process.env.QUERY_LOG_ENABLED, false)) {
+      const fireAndForget = isTruthyEnv(process.env.QUERY_LOG_EMAIL_FIRE_AND_FORGET, true);
+      const send = async () => {
+        try {
+          await sendQueryLogEmail({ reason: "immediate", queryLogDir, sessionKeyForSubject: sessionKey });
+        } catch (error) {
+          console.error("⚠️ Failed emailing query log (immediate):", error);
+        }
+      };
+      if (fireAndForget) {
+        void send();
+      } else {
+        await send();
+      }
+    }
+
     const contactEmail = (process.env.CONTACT_EMAIL ?? DEFAULT_CONTACT_EMAIL).trim();
     const contactLinkedInUrl = (process.env.CONTACT_LINKEDIN_URL ?? DEFAULT_LINKEDIN_URL).trim();
 
@@ -444,6 +715,58 @@ app.get("/healthz", (_req, res) => {
   res.json({ status: "ok" });
 });
 
+app.get("/admin/query-logs/status", (req, res) => {
+  if (!requireAdminToken(req)) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  const queryLogDir = getQueryLogDir(DATA_ROOT);
+  const logPath = getQueryLogPath(queryLogDir);
+  const exists = fs.existsSync(logPath);
+  const stat = exists ? fs.statSync(logPath) : null;
+  const state = readQueryLogState(queryLogDir);
+
+  return res.json({
+    enabled: isTruthyEnv(process.env.QUERY_LOG_ENABLED, false),
+    emailMode: getQueryLogMode(),
+    logPath,
+    exists,
+    sizeBytes: stat?.size ?? 0,
+    state,
+  });
+});
+
+app.get("/admin/query-logs/download", (req, res) => {
+  if (!requireAdminToken(req)) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  const queryLogDir = getQueryLogDir(DATA_ROOT);
+  const logPath = getQueryLogPath(queryLogDir);
+  if (!fs.existsSync(logPath)) {
+    return res.status(404).json({ error: "No query log file yet." });
+  }
+
+  res.setHeader("Content-Type", "application/x-ndjson");
+  res.setHeader("Content-Disposition", `attachment; filename="queries.ndjson"`);
+  return res.sendFile(logPath);
+});
+
+app.post("/admin/query-logs/send", async (req, res) => {
+  if (!requireAdminToken(req)) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  const queryLogDir = getQueryLogDir(DATA_ROOT);
+  try {
+    const result = await sendQueryLogEmail({ reason: "manual", queryLogDir });
+    return res.json({ ok: true, ...result });
+  } catch (error) {
+    console.error("🔥 /admin/query-logs/send error:", error);
+    return res.status(500).json({ ok: false, error: error instanceof Error ? error.message : "Failed to send email." });
+  }
+});
+
 // Alias for uptime monitors that expect `/health`.
 app.get("/health", (_req, res) => {
   res.setHeader("Cache-Control", "no-store");
@@ -487,3 +810,31 @@ const host = (process.env.HOST ?? "0.0.0.0").trim();
 app.listen(parsedPort, host, () => {
   console.log(`🚀 Server running on http://${host}:${parsedPort}`);
 });
+
+// Optional daily digest (server-local time).
+if (getQueryLogMode() === "daily" && isTruthyEnv(process.env.QUERY_LOG_ENABLED, false)) {
+  const queryLogDir = getQueryLogDir(DATA_ROOT);
+  const hour = Number(process.env.QUERY_LOG_EMAIL_HOUR ?? "9");
+  const minute = Number(process.env.QUERY_LOG_EMAIL_MINUTE ?? "0");
+  const safeHour = Number.isFinite(hour) ? Math.min(23, Math.max(0, hour)) : 9;
+  const safeMinute = Number.isFinite(minute) ? Math.min(59, Math.max(0, minute)) : 0;
+
+  console.log(`📬 Query log digest enabled: daily at ${String(safeHour).padStart(2, "0")}:${String(safeMinute).padStart(2, "0")}`);
+
+  setInterval(() => {
+    const now = new Date();
+    if (now.getHours() !== safeHour || now.getMinutes() !== safeMinute) return;
+
+    const state = readQueryLogState(queryLogDir);
+    const today = getYmdLocal(now);
+    if (state.lastDailySentYmd === today) return;
+
+    void (async () => {
+      try {
+        await sendQueryLogEmail({ reason: "daily", queryLogDir });
+      } catch (error) {
+        console.error("⚠️ Failed emailing query log (daily):", error);
+      }
+    })();
+  }, 60_000).unref();
+}
