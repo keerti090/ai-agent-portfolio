@@ -9,6 +9,7 @@ import path from "path";
 import fetch from "node-fetch";
 import { fileURLToPath } from "url";
 import * as cheerio from "cheerio";
+import nodemailer from "nodemailer";
 
 import { Document } from "@langchain/core/documents";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
@@ -27,6 +28,55 @@ if (missingEnv.length > 0) {
 }
 
 const DEFAULT_LINKEDIN_URL = "https://www.linkedin.com/in/keertihegde/";
+const DEFAULT_CONTACT_EMAIL = "keerti.hegdev@gmail.com";
+
+type ContactSessionState =
+  | { mode: "awaiting_message"; createdAt: number };
+
+const contactSessions = new Map<string, ContactSessionState>();
+
+function getSessionKey(req: express.Request): string {
+  const body = req.body as unknown;
+  const sessionId =
+    typeof body === "object" && body !== null && "sessionId" in body
+      ? (body as { sessionId?: unknown }).sessionId
+      : undefined;
+
+  if (typeof sessionId === "string" && sessionId.trim()) {
+    return sessionId.trim();
+  }
+  // Fallback if the UI didn't send a session id.
+  return `ip:${req.ip}`;
+}
+
+function pruneOldContactSessions(now = Date.now()) {
+  // Keep contact "awaiting message" sessions short-lived.
+  const ttlMs = 30 * 60 * 1000;
+  for (const [key, state] of contactSessions.entries()) {
+    if (now - state.createdAt > ttlMs) {
+      contactSessions.delete(key);
+    }
+  }
+}
+
+function getMailer() {
+  const host = (process.env.SMTP_HOST ?? "").trim();
+  const port = Number(process.env.SMTP_PORT ?? "587");
+  const secure = String(process.env.SMTP_SECURE ?? "false").toLowerCase() === "true";
+  const user = (process.env.SMTP_USER ?? "").trim();
+  const pass = (process.env.SMTP_PASS ?? "").trim();
+
+  if (!host || !user || !pass || Number.isNaN(port)) {
+    return null;
+  }
+
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    auth: { user, pass },
+  });
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -259,27 +309,75 @@ app.post("/ask", async (req, res) => {
     const trimmedMessage = message.trim();
     console.log("Received message:", trimmedMessage);
 
-    const contactEmail = (process.env.CONTACT_EMAIL ?? "").trim();
+    pruneOldContactSessions();
+    const sessionKey = getSessionKey(req);
+    const contactEmail = (process.env.CONTACT_EMAIL ?? DEFAULT_CONTACT_EMAIL).trim();
     const contactLinkedInUrl = (process.env.CONTACT_LINKEDIN_URL ?? DEFAULT_LINKEDIN_URL).trim();
 
     const isContactIntent = /\b(contact|email|e-mail|reach|connect|schedule|shedule|book|booking|call|meeting|chat|talk|interview)\b/i.test(
       trimmedMessage
     );
 
-    // Hard guarantee: if they ask for contact/scheduling, return contact info immediately.
-    if (isContactIntent) {
-      const lines: string[] = ["## Contact Keerti"];
-      if (contactEmail) {
-        lines.push(`- **Email (best)**: ${contactEmail}`);
-        lines.push("", "If you’d like to schedule a call, please email me with:");
-        lines.push("- your name + company");
-        lines.push("- what you’d like to discuss");
-        lines.push("- 2–3 time windows + your timezone");
-      } else {
-        lines.push(`- **LinkedIn**: ${contactLinkedInUrl}`);
-        lines.push("", "Email isn’t configured on this site yet — if you want email support here, set `CONTACT_EMAIL` on the server.");
+    const activeContactState = contactSessions.get(sessionKey);
+
+    // If we're collecting a message to email, treat the user's next message as the email body.
+    if (activeContactState?.mode === "awaiting_message") {
+      const isCancel = /\b(cancel|never mind|nevermind|stop)\b/i.test(trimmedMessage);
+      if (isCancel) {
+        contactSessions.delete(sessionKey);
+        return res.json({
+          answer: "No problem — I won’t send anything. If you want, you can ask again anytime to contact Keerti.",
+        });
       }
-      return res.json({ answer: lines.join("\n") });
+
+      const maxLen = 4000;
+      const body = trimmedMessage.slice(0, maxLen);
+      const subject = "Portfolio message via Kairo";
+
+      const mailer = getMailer();
+      if (!mailer) {
+        contactSessions.delete(sessionKey);
+        const mailto = `mailto:${encodeURIComponent(contactEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        return res.json({
+          answer:
+            `I’m not configured to send email directly from this server yet.\n\n` +
+            `Please copy/paste this message into an email to **${contactEmail}**:\n\n` +
+            `${body}\n\n` +
+            `Or use this link: ${mailto}`,
+        });
+      }
+
+      const from = (process.env.SMTP_FROM ?? process.env.SMTP_USER ?? "").trim();
+      if (!from) {
+        contactSessions.delete(sessionKey);
+        return res.status(500).json({
+          error: "SMTP is configured but SMTP_FROM (or SMTP_USER) is missing.",
+        });
+      }
+
+      await mailer.sendMail({
+        from,
+        to: contactEmail,
+        subject,
+        text: body,
+      });
+
+      contactSessions.delete(sessionKey);
+      return res.json({
+        answer: `Sent — I just emailed your message to **${contactEmail}**.`,
+      });
+    }
+
+    // Start contact flow: ask what they want to write, then email it on the next message.
+    if (isContactIntent) {
+      contactSessions.set(sessionKey, { mode: "awaiting_message", createdAt: Date.now() });
+      return res.json({
+        answer:
+          `## Contact Keerti\n` +
+          `- **Email**: ${contactEmail}\n\n` +
+          `What would you like to write?\n` +
+          `Reply with the message you want to send, and I’ll forward it to Keerti.`,
+      });
     }
 
     const vectorstore = await getVectorStore();
@@ -304,7 +402,7 @@ app.post("/ask", async (req, res) => {
     //
     const contactInfoLines: string[] = [
       "CONTACT INFO (use this when the user asks to contact/schedule):",
-      contactEmail ? `Email: ${contactEmail}` : "Email: (not provided)",
+      `Email: ${contactEmail}`,
       `LinkedIn: ${contactLinkedInUrl}`,
     ];
     const messages: ChatCompletionMessageParam[] = [
