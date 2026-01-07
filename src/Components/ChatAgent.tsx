@@ -139,6 +139,15 @@ interface ChatAgentProps {
   setMessages: React.Dispatch<React.SetStateAction<{ role: string; content: string }[]>>;
 }
 
+const FUN_FACTS: string[] = [
+  "The first computer mouse prototype (1964) was made of wood.",
+  "The term “bug” in computing was popularized after a real moth was found in a relay computer in 1947.",
+  "The first website (1991) is still online.",
+  "“Helvetica” was created in 1957 and is used everywhere from subway signs to apps.",
+  "A blinking cursor was originally a hardware feature to save memory on early terminals.",
+  "The @ symbol was chosen for email addresses in 1971 because it was rarely used in names.",
+];
+
 function getOrCreateSessionId(): string {
   const key = "kairo_session_id";
   try {
@@ -160,6 +169,9 @@ const ChatAgent: React.FC<ChatAgentProps> = ({ messages, setMessages }) => {
   const [loading, setLoading] = useState(false);
   const [slowNetworkOrColdStart, setSlowNetworkOrColdStart] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [funFact, setFunFact] = useState<string>(
+    () => FUN_FACTS[Math.floor(Math.random() * FUN_FACTS.length)] || "Octopuses have three hearts."
+  );
 
   const containerRef = useRef<HTMLDivElement>(null);
   const slowTimerRef = useRef<number | null>(null);
@@ -306,6 +318,26 @@ const ChatAgent: React.FC<ChatAgentProps> = ({ messages, setMessages }) => {
     }
   }, [setMessages]);
 
+  // Rotate a "fun fact" while we're waiting on slower requests.
+  useEffect(() => {
+    if (!loading || !slowNetworkOrColdStart) return;
+    if (FUN_FACTS.length === 0) return;
+
+    setFunFact(FUN_FACTS[Math.floor(Math.random() * FUN_FACTS.length)]!);
+    const intervalId = window.setInterval(() => {
+      setFunFact((prev) => {
+        if (FUN_FACTS.length <= 1) return prev;
+        let next = prev;
+        while (next === prev) {
+          next = FUN_FACTS[Math.floor(Math.random() * FUN_FACTS.length)]!;
+        }
+        return next;
+      });
+    }, 6500);
+
+    return () => window.clearInterval(intervalId);
+  }, [loading, slowNetworkOrColdStart]);
+
   // --- Trigger API when user message is added ---
   useEffect(() => {
     if (messages.length > 0 && messages[messages.length - 1].role === "user") {
@@ -333,9 +365,15 @@ const ChatAgent: React.FC<ChatAgentProps> = ({ messages, setMessages }) => {
               {slowNetworkOrColdStart ? "Waking things up…" : "Kairo is thinking…"}
             </div>
             <div className="typing-subtitle">
-              {slowNetworkOrColdStart
-                ? "Free hosting can take ~1 min on the first message. Thanks for your patience."
-                : "One sec — I’ll reply shortly."}
+              {slowNetworkOrColdStart ? (
+                <>
+                  This may take a moment — I’m getting your response ready.
+                  <br />
+                  <span className="fun-fact">Fun fact: {funFact}</span>
+                </>
+              ) : (
+                "One sec — I’ll reply shortly."
+              )}
             </div>
             <div className="typing-dots" aria-hidden="true">
               <span />
