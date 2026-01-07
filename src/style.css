@@ -429,6 +429,13 @@
   line-height: 1.35;
 }
 
+.typing-subtitle .fun-fact {
+  display: inline-block;
+  margin-top: 2px;
+  opacity: 0.95;
+  font-style: italic;
+}
+
 .typing-dots {
   display: inline-flex;
   align-items: center;
