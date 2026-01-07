@@ -11,7 +11,7 @@ Copy `.env.example` to `.env` and populate the values before running any scripts
 
 ```
 OPENAI_API_KEY=sk-...
-CONTACT_EMAIL=               # used when users ask to contact/schedule
+CONTACT_EMAIL=keerti.hegdev@gmail.com  # used when users ask to contact/schedule
 CONTACT_LINKEDIN_URL=        # optional override; falls back to the site LinkedIn
 SMTP_HOST=                   # optional: enable server-side email sending
 SMTP_PORT=587
