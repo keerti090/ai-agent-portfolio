@@ -256,9 +256,9 @@ export class QueryLogger {
       throw new Error("SMTP is not configured (SMTP_HOST/SMTP_USER/SMTP_PASS missing).");
     }
 
-    const to = (process.env.QUERY_LOG_EMAIL_TO ?? "").trim();
+    const to = (process.env.QUERY_LOG_EMAIL_TO ?? process.env.CONTACT_EMAIL ?? "").trim();
     if (!to) {
-      throw new Error("QUERY_LOG_EMAIL_TO is missing.");
+      throw new Error("QUERY_LOG_EMAIL_TO (or CONTACT_EMAIL fallback) is missing.");
     }
 
     const from = (process.env.QUERY_LOG_EMAIL_FROM ?? process.env.SMTP_FROM ?? process.env.SMTP_USER ?? "").trim();
