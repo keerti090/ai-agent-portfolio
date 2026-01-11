@@ -105,6 +105,47 @@ const CASE_STUDIES: Record<string, { filename: string }> = {
   "optym-lms": { filename: "Optym - LMS.pdf" },
 };
 
+function getPublicBaseUrl(req: express.Request): string {
+  const configured = (process.env.PUBLIC_BASE_URL ?? "").trim().replace(/\/$/, "");
+  if (configured) return configured;
+  const host = req.get("host");
+  if (!host) return "";
+  return `${req.protocol}://${host}`;
+}
+
+function caseStudyTitleFromFilename(filename: string): string {
+  return filename.replace(/\.pdf$/i, "").trim();
+}
+
+function buildCaseStudyLinks(
+  req: express.Request,
+  searchResults: Array<[Document, number]>
+): Array<{ title: string; url: string; slug: string }> {
+  const filenameToSlug = new Map(
+    Object.entries(CASE_STUDIES).map(([slug, entry]) => [entry.filename.toLowerCase(), slug])
+  );
+
+  const matches = new Set<string>();
+  for (const [doc] of searchResults) {
+    const source = typeof doc.metadata?.source === "string" ? doc.metadata.source : "";
+    const basename = path.basename(source).toLowerCase();
+    const slug = filenameToSlug.get(basename);
+    if (slug) matches.add(slug);
+  }
+
+  const baseUrl = getPublicBaseUrl(req);
+  return Array.from(matches).map((slug) => {
+    const filename = CASE_STUDIES[slug]!.filename;
+    const title = caseStudyTitleFromFilename(filename);
+    const relative = `/case-studies/${encodeURIComponent(slug)}`;
+    return {
+      slug,
+      title,
+      url: baseUrl ? `${baseUrl}${relative}` : relative,
+    };
+  });
+}
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
 });
@@ -411,9 +452,21 @@ app.post("/ask", async (req, res) => {
       `Email: ${contactEmail}`,
       `LinkedIn: ${contactLinkedInUrl}`,
     ];
+
+    const baseUrl = getPublicBaseUrl(req);
+    const caseStudyInfoLines: string[] = [
+      "CASE STUDIES (use ONLY these canonical titles; include a link when relevant):",
+      ...Object.entries(CASE_STUDIES).map(([slug, entry]) => {
+        const title = caseStudyTitleFromFilename(entry.filename);
+        const relative = `/case-studies/${encodeURIComponent(slug)}`;
+        const url = baseUrl ? `${baseUrl}${relative}` : relative;
+        return `- ${title} (${url})`;
+      }),
+    ];
     const messages: ChatCompletionMessageParam[] = [
       { role: "system", content: systemprompt },
       { role: "system", content: contactInfoLines.join("\n") },
+      { role: "system", content: caseStudyInfoLines.join("\n") },
       { 
         role: "user", 
         content: `Use the context below to answer with SPECIFIC, CONCRETE details from Keerti's work. Extract actual project names, numbers, outcomes, and methodologies. NEVER use placeholder text or generic descriptions.
@@ -436,9 +489,16 @@ Remember: Be specific, use real data from the context, and avoid vague language.
       messages,
     });
 
-    const answer = completion.choices[0].message.content;
+    const answer = completion.choices[0].message.content ?? "";
+    const caseStudyLinks = buildCaseStudyLinks(req, searchResults);
+    const seeMoreSection =
+      caseStudyLinks.length > 0
+        ? `\n\n---\n### Want to see more?\n${caseStudyLinks
+            .map((link) => `- [${link.title}](${link.url})`)
+            .join("\n")}\n`
+        : "";
 
-    res.json({ answer });
+    res.json({ answer: `${answer}${seeMoreSection}` });
   } catch (err) {
     console.error("🔥 /ask error:", err);
     res.status(500).json({ error: "Something went wrong." });
