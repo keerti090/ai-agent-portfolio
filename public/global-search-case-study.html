@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Search Case Study - Keerti Hegde</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --accent: #2563eb;
+            --accent-light: #dbeafe;
+            --text-primary: #1f2937;
+            --text-secondary: #6b7280;
+            --bg-primary: #ffffff;
+            --bg-secondary: #f9fafb;
+            --border: #e5e7eb;
+            --shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
+            --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text-primary);
+            background: var(--bg-secondary);
+        }
+
+        nav {
+            position: sticky;
+            top: 0;
+            background: var(--bg-primary);
+            border-bottom: 1px solid var(--border);
+            z-index: 100;
+            box-shadow: var(--shadow);
+        }
+
+        nav .nav-container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 24px;
+            display: flex;
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+
+        nav .nav-container::-webkit-scrollbar {
+            display: none;
+        }
+
+        nav a {
+            display: block;
+            padding: 20px 16px;
+            text-decoration: none;
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 500;
+            white-space: nowrap;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        nav a:hover {
+            color: var(--accent);
+        }
+
+        nav a.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        section {
+            padding: 80px 0;
+        }
+
+        .hero {
+            background: var(--bg-primary);
+            padding: 120px 0 80px;
+            text-align: center;
+        }
+
+        .hero h1 {
+            font-size: 48px;
+            font-weight: 700;
+            line-height: 1.2;
+            margin-bottom: 32px;
+            color: var(--text-primary);
+        }
+
+        .hero .impact {
+            font-size: 28px;
+            line-height: 1.4;
+            margin-bottom: 24px;
+            color: var(--text-secondary);
+        }
+
+        .hero .impact strong {
+            color: var(--accent);
+            font-weight: 700;
+        }
+
+        .hero .subtext {
+            font-size: 18px;
+            color: var(--text-secondary);
+            max-width: 720px;
+            margin: 0 auto 40px;
+        }
+
+        .meta-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: center;
+            margin-bottom: 40px;
+        }
+
+        .chip {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .chip strong {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .btn {
+            display: inline-block;
+            background: var(--accent);
+            color: white;
+            padding: 14px 32px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.2s;
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn:hover {
+            background: #1d4ed8;
+            box-shadow: var(--shadow-lg);
+            transform: translateY(-1px);
+        }
+
+        h2 {
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 32px;
+            color: var(--text-primary);
+        }
+
+        h3 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: var(--text-primary);
+        }
+
+        p {
+            margin-bottom: 16px;
+            color: var(--text-secondary);
+            font-size: 16px;
+        }
+
+        .callout {
+            background: var(--accent-light);
+            border-left: 4px solid var(--accent);
+            padding: 24px;
+            border-radius: 8px;
+            margin: 32px 0;
+        }
+
+        .callout h3 {
+            color: var(--accent);
+            margin-bottom: 12px;
+            font-size: 18px;
+        }
+
+        .callout p {
+            color: var(--text-primary);
+            margin: 0;
+        }
+
+        .problem-statement {
+            background: var(--bg-primary);
+            padding: 32px;
+            border-radius: 12px;
+            box-shadow: var(--shadow-md);
+            margin-bottom: 32px;
+            border-left: 4px solid var(--accent);
+        }
+
+        .problem-statement p {
+            font-size: 18px;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin: 0;
+        }
+
+        ul {
+            margin: 24px 0;
+            padding-left: 24px;
+        }
+
+        li {
+            margin-bottom: 12px;
+            color: var(--text-secondary);
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+            margin: 32px 0;
+        }
+
+        .card {
+            background: var(--bg-primary);
+            padding: 32px;
+            border-radius: 12px;
+            box-shadow: var(--shadow-md);
+            transition: all 0.2s;
+        }
+
+        .card:hover {
+            box-shadow: var(--shadow-lg);
+            transform: translateY(-2px);
+        }
+
+        .card h3 {
+            color: var(--accent);
+            font-size: 20px;
+            margin-bottom: 12px;
+        }
+
+        .card p {
+            margin: 0;
+        }
+
+        .principles {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+            margin: 32px 0;
+        }
+
+        .principle {
+            background: var(--bg-primary);
+            padding: 24px;
+            border-radius: 12px;
+            border-top: 3px solid var(--accent);
+            box-shadow: var(--shadow);
+        }
+
+        .principle p {
+            margin: 0;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .hypotheses {
+            background: var(--bg-primary);
+            padding: 32px;
+            border-radius: 12px;
+            box-shadow: var(--shadow-md);
+            margin: 32px 0;
+        }
+
+        .hypotheses h3 {
+            margin-bottom: 16px;
+        }
+
+        .iteration-section {
+            background: var(--bg-primary);
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: var(--shadow-md);
+            margin: 40px 0;
+        }
+
+        .iteration-section h3 {
+            color: var(--accent);
+            margin-bottom: 24px;
+        }
+
+        .figma-embed {
+            margin: 32px 0;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: var(--shadow-md);
+        }
+
+        .figma-embed iframe {
+            width: 100%;
+            height: 450px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        .iteration-placeholder {
+            background: var(--bg-secondary);
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            margin: 32px 0;
+        }
+
+        .final-image {
+            width: 100%;
+            height: auto;
+            border-radius: 12px;
+            box-shadow: var(--shadow-lg);
+            margin: 32px 0;
+        }
+
+        .image-caption {
+            text-align: center;
+            font-style: italic;
+            color: var(--text-secondary);
+            margin-top: 16px;
+            font-size: 14px;
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 24px;
+            margin: 32px 0;
+        }
+
+        .metric {
+            background: var(--bg-primary);
+            padding: 32px;
+            border-radius: 12px;
+            box-shadow: var(--shadow-md);
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 48px;
+            font-weight: 700;
+            color: var(--accent);
+            margin-bottom: 8px;
+        }
+
+        .metric-label {
+            font-size: 16px;
+            color: var(--text-secondary);
+        }
+
+        .back-to-top {
+            position: fixed;
+            bottom: 32px;
+            right: 32px;
+            background: var(--accent);
+            color: white;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: var(--shadow-lg);
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s;
+            border: none;
+            font-size: 20px;
+        }
+
+        .back-to-top.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .back-to-top:hover {
+            background: #1d4ed8;
+            transform: translateY(-2px);
+        }
+
+        footer {
+            background: var(--bg-primary);
+            padding: 40px 0;
+            text-align: center;
+            border-top: 1px solid var(--border);
+        }
+
+        footer p {
+            margin: 0;
+        }
+
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 32px;
+            }
+
+            .hero .impact {
+                font-size: 22px;
+            }
+
+            .hero .subtext {
+                font-size: 16px;
+            }
+
+            h2 {
+                font-size: 28px;
+            }
+
+            section {
+                padding: 60px 0;
+            }
+
+            .hero {
+                padding: 80px 0 60px;
+            }
+
+            .cards,
+            .principles {
+                grid-template-columns: 1fr;
+            }
+
+            .figma-embed iframe {
+                height: 300px;
+            }
+
+            nav a {
+                font-size: 13px;
+                padding: 16px 12px;
+            }
+
+            .iteration-section,
+            .hypotheses {
+                padding: 24px;
+            }
+
+            .metric-value {
+                font-size: 36px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="nav-container">
+            <a href="#overview">Overview</a>
+            <a href="#problem">Problem</a>
+            <a href="#research">Research</a>
+            <a href="#strategy">Strategy</a>
+            <a href="#iterations">Iterations</a>
+            <a href="#impact">Impact</a>
+            <a href="#reflection">Reflection</a>
+            <a href="#prototype">Prototype</a>
+        </div>
+    </nav>
+
+    <section class="hero">
+        <div class="container">
+            <h1>Global Search for Seamless Product Discovery</h1>
+            <p class="impact">Achieved a <strong>30% improvement</strong> in product discovery and buyflow by designing and rolling out Global Search for Apptium's Cloud Commerce Platform.</p>
+            <p class="subtext">A unified search experience that enables resellers to find products, customers, and orders faster—improving sales velocity and operational efficiency.</p>
+            
+            <div class="meta-chips">
+                <span class="chip"><strong>Role:</strong> Product Designer</span>
+                <span class="chip"><strong>Company:</strong> Apptium</span>
+                <span class="chip"><strong>Timeline:</strong> Nov 2024 – Apr 2025</span>
+                <span class="chip"><strong>Tools:</strong> Figma, Google Analytics, UserTesting, Miro</span>
+            </div>
+            
+            <a href="#prototype" class="btn">View Prototype</a>
+        </div>
+    </section>
+
+    <section id="overview">
+        <div class="container">
+            <h2>Overview</h2>
+            <p>Apptium's Cloud Commerce Platform enables resellers to manage, purchase, and sell cloud products. As the platform scaled, resellers struggled to locate products, subscriptions, and customers efficiently. The absence of a unified Global Search fragmented workflows and slowed critical tasks.</p>
+            
+            <div class="callout">
+                <h3>My Contribution</h3>
+                <p>Led Global Search UX end-to-end: research synthesis, information architecture, interaction design, prototyping, usability testing, and iterative refinement with engineering.</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="problem">
+        <div class="container">
+            <h2>Problem</h2>
+            <div class="problem-statement">
+                <p>How might we help resellers quickly find products, orders, and customer details without friction—enhancing their ability to manage cloud operations efficiently?</p>
+            </div>
+            
+            <h3>Constraints</h3>
+            <ul>
+                <li>Tight timelines for regional launches</li>
+                <li>Alignment with existing platform architecture</li>
+                <li>Large and rapidly growing datasets</li>
+            </ul>
+        </div>
+    </section>
+
+    <section id="research">
+        <div class="container">
+            <h2>Research & Insights</h2>
+            <p>Mixed-method research combining platform analytics, search logs, time-on-task metrics, and interviews with 15 active APAC resellers (new + experienced).</p>
+            
+            <div class="cards">
+                <div class="card">
+                    <h3>Insight 1</h3>
+                    <p>30% of users instinctively searched for a search bar immediately upon login</p>
+                </div>
+                <div class="card">
+                    <h3>Insight 2</h3>
+                    <p>Navigation-heavy discovery caused task abandonment as catalogs scaled</p>
+                </div>
+                <div class="card">
+                    <h3>Insight 3</h3>
+                    <p>Users valued relevant suggestions upfront more than exhaustive result lists</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="strategy">
+        <div class="container">
+            <h2>Design Strategy</h2>
+            <div class="principles">
+                <div class="principle">
+                    <p>Optimize for speed-to-relevance, not completeness</p>
+                </div>
+                <div class="principle">
+                    <p>Use progressive disclosure to minimize cognitive load</p>
+                </div>
+                <div class="principle">
+                    <p>Balance familiar search patterns with contextual enhancements</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="hypotheses">
+        <div class="container">
+            <h2>Hypotheses & Testing</h2>
+            <div class="hypotheses">
+                <h3>Hypotheses</h3>
+                <p><strong>HMW 1:</strong> A tabbed Global Search with progressive disclosure enables efficient cross-module exploration</p>
+                <p><strong>HMW 2:</strong> Showing high-relevance results upfront improves comprehension and task completion</p>
+                
+                <h3 style="margin-top: 32px;">Prototypes</h3>
+                <ul>
+                    <li><strong>Version 1:</strong> Deep tab-based drill-down</li>
+                    <li><strong>Version 2:</strong> Suggestion-first with contextual relevance</li>
+                </ul>
+                
+                <h3 style="margin-top: 32px;">Outcome</h3>
+                <p>Version 2 performed better—users completed tasks faster with fewer clicks and greater confidence.</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="iterations">
+        <div class="container">
+            <h2>Iterations — Filter Placement & Cognitive Load</h2>
+            <p>Early designs placed filters directly inside the search dropdown to keep users "in flow." Testing showed this increased cognitive load and reduced discoverability—users focused on results and missed refinement controls.</p>
+            
+            <div class="iteration-section">
+                <h3>Iteration 1 — Filters Embedded in Dropdown (High Control, High Load)</h3>
+                <ul>
+                    <li><strong>Intent:</strong> Allow refinement without leaving search context</li>
+                    <li><strong>Observed behavior:</strong> Users scanned results first and overlooked filters</li>
+                    <li><strong>Issue:</strong> Too many competing controls increased cognitive effort</li>
+                </ul>
+                
+                <div class="figma-embed">
+                    <iframe src="https://embed.figma.com/proto/gGAwpKaTCvXOZkmjxOLbGd/Personal_Cases?page-id=96%3A2&node-id=544-121&viewport=193%2C255%2C0.05&scaling=min-zoom&content-scaling=fixed&starting-point-node-id=544%3A121&embed-host=share" allowfullscreen></iframe>
+                </div>
+            </div>
+            
+            <div class="iteration-placeholder">
+                <h3>Iteration 2 — Externalized Filters with Lightweight Tags</h3>
+                <ul>
+                    <li><strong>Change:</strong> Moved advanced filters outside dropdown</li>
+                    <li><strong>Why it worked:</strong> Clear separation between results and refinement</li>
+                    <li><strong>Result:</strong> Faster scanning and intentional narrowing</li>
+                </ul>
+                
+                <div class="callout" style="margin-top: 24px;">
+                    <h3>Design Decision</h3>
+                    <p>Progressive disclosure only works when the next step is obvious. In search, results must dominate—controls should support, not compete.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="final-iteration">
+        <div class="container">
+            <h2>Final Iteration — Scalable Search Experience</h2>
+            
+            <div style="background: var(--bg-secondary); padding: 60px; border-radius: 12px; text-align: center; margin: 32px 0;">
+                <p style="color: var(--text-secondary); font-style: italic; margin: 0;">Final design — Externalized filters with grouped, cross-module results.</p>
+            </div>
+            
+            <p>The final iteration evolved Global Search into a structured, multi-column results experience grouped by Marketplace, Subscriptions, and Customers. Persistent refinement controls and visible search criteria improved orientation, confidence, and scalability.</p>
+            
+            <div style="background: var(--bg-primary); padding: 32px; border-radius: 12px; box-shadow: var(--shadow-md); margin: 32px 0;">
+                <h3>What Changed</h3>
+                <ul>
+                    <li>Results grouped by domain for fast cross-module scanning</li>
+                    <li>Filters contextualized by module</li>
+                    <li>Search criteria chips showed visible state and easy reset</li>
+                </ul>
+                
+                <h3 style="margin-top: 32px;">Why It Worked</h3>
+                <ul>
+                    <li>Reduced cognitive load</li>
+                    <li>Scaled with growing catalogs and data</li>
+                    <li>Enabled broad scan → focused refinement behavior</li>
+                </ul>
+            </div>
+            
+            <div class="callout">
+                <h3>Outcome</h3>
+                <p>This structure significantly improved comprehension and refinement speed, contributing directly to a 30% improvement in product discovery time.</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="impact">
+        <div class="container">
+            <h2>Impact</h2>
+            <div class="metrics">
+                <div class="metric">
+                    <div class="metric-value">30%</div>
+                    <div class="metric-label">Improvement in product discovery time</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value">↓</div>
+                    <div class="metric-label">Reduced search-related support tickets</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value">↑</div>
+                    <div class="metric-label">Faster buyflow and improved reseller satisfaction</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="reflection">
+        <div class="container">
+            <h2>Final Reflection</h2>
+            <p>This project reinforced that search is foundational to user trust and platform efficiency. By grounding decisions in behavioral data and disciplined iteration, we delivered a scalable solution that meaningfully improved discovery and purchase flows.</p>
+        </div>
+    </section>
+
+    <section id="prototype">
+        <div class="container">
+            <h2>Prototype</h2>
+            <div class="figma-embed">
+                <iframe src="https://embed.figma.com/proto/gGAwpKaTCvXOZkmjxOLbGd/Personal_Cases?page-id=96%3A2&node-id=98-14843&viewport=193%2C255%2C0.05&scaling=min-zoom&content-scaling=fixed&starting-point-node-id=98%3A8452&embed-host=share" allowfullscreen></iframe>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2025 Keerti Hegde. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <button class="back-to-top" id="backToTop">↑</button>
+
+    <script>
+        const nav = document.querySelector('nav');
+        const navLinks = document.querySelectorAll('nav a');
+        const sections = document.querySelectorAll('section[id]');
+        const backToTop = document.getElementById('backToTop');
+
+        function setActiveNav() {
+            let current = '';
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop;
+                const sectionHeight = section.clientHeight;
+                if (window.scrollY >= sectionTop - 100) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            navLinks.forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href') === `#${current}`) {
+                    link.classList.add('active');
+                }
+            });
+        }
+
+        function toggleBackToTop() {
+            if (window.scrollY > 500) {
+                backToTop.classList.add('visible');
+            } else {
+                backToTop.classList.remove('visible');
+            }
+        }
+
+        window.addEventListener('scroll', () => {
+            setActiveNav();
+            toggleBackToTop();
+        });
+
+        backToTop.addEventListener('click', () => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+
+        navLinks.forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const targetId = link.getAttribute('href').substring(1);
+                const targetSection = document.getElementById(targetId);
+                const offsetTop = targetSection.offsetTop - nav.clientHeight;
+                window.scrollTo({ top: offsetTop, behavior: 'smooth' });
+            });
+        });
+    </script>
+</body>
+</html>
