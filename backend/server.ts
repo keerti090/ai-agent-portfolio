@@ -99,10 +99,23 @@ console.log("📩 CONTACT EMAIL:", process.env.CONTACT_EMAIL ? "Loaded" : "Not s
 const queryLogger = new QueryLogger(DATA_ROOT);
 console.log("🧾 QUERY LOGGING:", queryLogger.enabled() ? "Enabled" : "Disabled");
 
-const CASE_STUDIES: Record<string, { filename: string }> = {
-  search: { filename: "Search-Feature case study.pdf" },
-  zentra: { filename: "Zentra Case study.pdf" },
-  "optym-lms": { filename: "Optym - LMS.pdf" },
+const CASE_STUDIES: Record<
+  string,
+  { title: string; filename: string; webflowPreviewUrl?: string }
+> = {
+  search: { title: "Search Global and Module", filename: "Search-Feature case study.pdf" },
+  zentra: {
+    title: "Zentra - Property Management",
+    filename: "Zentra Case study.pdf",
+    webflowPreviewUrl:
+      "https://preview.webflow.com/preview/keertis-dapper-site?utm_medium=preview_link&utm_source=designer&utm_content=keertis-dapper-site&preview=193a28b12b9c763d9cdcb272279c9787&pageId=66031f7d5fe1526d39ea7fc6&workflow=sitePreview",
+  },
+  "optym-lms": {
+    title: "Leave Management System",
+    filename: "Optym - LMS.pdf",
+    webflowPreviewUrl:
+      "https://preview.webflow.com/preview/keertis-dapper-site?utm_medium=preview_link&utm_source=designer&utm_content=keertis-dapper-site&preview=193a28b12b9c763d9cdcb272279c9787&pageId=6518acd461008515c9c8a4df&workflow=sitePreview",
+  },
 };
 
 function getPublicBaseUrl(req: express.Request): string {
@@ -113,8 +126,10 @@ function getPublicBaseUrl(req: express.Request): string {
   return `${req.protocol}://${host}`;
 }
 
-function caseStudyTitleFromFilename(filename: string): string {
-  return filename.replace(/\.pdf$/i, "").trim();
+function getCaseStudyPdfUrl(req: express.Request, slug: string): string {
+  const baseUrl = getPublicBaseUrl(req);
+  const relative = `/case-studies/${encodeURIComponent(slug)}`;
+  return baseUrl ? `${baseUrl}${relative}` : relative;
 }
 
 function buildCaseStudyLinks(
@@ -133,15 +148,14 @@ function buildCaseStudyLinks(
     if (slug) matches.add(slug);
   }
 
-  const baseUrl = getPublicBaseUrl(req);
   return Array.from(matches).map((slug) => {
-    const filename = CASE_STUDIES[slug]!.filename;
-    const title = caseStudyTitleFromFilename(filename);
-    const relative = `/case-studies/${encodeURIComponent(slug)}`;
+    const entry = CASE_STUDIES[slug]!;
+    const title = entry.title;
+    const relative = entry.webflowPreviewUrl?.trim() ? entry.webflowPreviewUrl.trim() : getCaseStudyPdfUrl(req, slug);
     return {
       slug,
       title,
-      url: baseUrl ? `${baseUrl}${relative}` : relative,
+      url: relative,
     };
   });
 }
@@ -453,14 +467,12 @@ app.post("/ask", async (req, res) => {
       `LinkedIn: ${contactLinkedInUrl}`,
     ];
 
-    const baseUrl = getPublicBaseUrl(req);
     const caseStudyInfoLines: string[] = [
       "CASE STUDIES (use ONLY these canonical titles; include a link when relevant):",
       ...Object.entries(CASE_STUDIES).map(([slug, entry]) => {
-        const title = caseStudyTitleFromFilename(entry.filename);
-        const relative = `/case-studies/${encodeURIComponent(slug)}`;
-        const url = baseUrl ? `${baseUrl}${relative}` : relative;
-        return `- ${title} (${url})`;
+        const preferredUrl = entry.webflowPreviewUrl?.trim() ? entry.webflowPreviewUrl.trim() : getCaseStudyPdfUrl(req, slug);
+        const label = entry.webflowPreviewUrl?.trim() ? "Webflow preview" : "PDF";
+        return `- ${entry.title} (${label}: ${preferredUrl})`;
       }),
     ];
     const messages: ChatCompletionMessageParam[] = [
