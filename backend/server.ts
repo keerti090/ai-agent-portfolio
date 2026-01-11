@@ -99,11 +99,66 @@ console.log("📩 CONTACT EMAIL:", process.env.CONTACT_EMAIL ? "Loaded" : "Not s
 const queryLogger = new QueryLogger(DATA_ROOT);
 console.log("🧾 QUERY LOGGING:", queryLogger.enabled() ? "Enabled" : "Disabled");
 
-const CASE_STUDIES: Record<string, { filename: string }> = {
-  search: { filename: "Search-Feature case study.pdf" },
-  zentra: { filename: "Zentra Case study.pdf" },
-  "optym-lms": { filename: "Optym - LMS.pdf" },
+const CASE_STUDIES: Record<
+  string,
+  { title: string; filename: string; webflowPreviewUrl?: string }
+> = {
+  search: { title: "Search Global and Module", filename: "Search-Feature case study.pdf" },
+  zentra: {
+    title: "Zentra - Property Management",
+    filename: "Zentra Case study.pdf",
+    webflowPreviewUrl:
+      "https://preview.webflow.com/preview/keertis-dapper-site?utm_medium=preview_link&utm_source=designer&utm_content=keertis-dapper-site&preview=193a28b12b9c763d9cdcb272279c9787&pageId=66031f7d5fe1526d39ea7fc6&workflow=sitePreview",
+  },
+  "optym-lms": {
+    title: "Leave Management System",
+    filename: "Optym - LMS.pdf",
+    webflowPreviewUrl:
+      "https://preview.webflow.com/preview/keertis-dapper-site?utm_medium=preview_link&utm_source=designer&utm_content=keertis-dapper-site&preview=193a28b12b9c763d9cdcb272279c9787&pageId=6518acd461008515c9c8a4df&workflow=sitePreview",
+  },
 };
+
+function getPublicBaseUrl(req: express.Request): string {
+  const configured = (process.env.PUBLIC_BASE_URL ?? "").trim().replace(/\/$/, "");
+  if (configured) return configured;
+  const host = req.get("host");
+  if (!host) return "";
+  return `${req.protocol}://${host}`;
+}
+
+function getCaseStudyPdfUrl(req: express.Request, slug: string): string {
+  const baseUrl = getPublicBaseUrl(req);
+  const relative = `/case-studies/${encodeURIComponent(slug)}`;
+  return baseUrl ? `${baseUrl}${relative}` : relative;
+}
+
+function buildCaseStudyLinks(
+  req: express.Request,
+  searchResults: Array<[Document, number]>
+): Array<{ title: string; url: string; slug: string }> {
+  const filenameToSlug = new Map(
+    Object.entries(CASE_STUDIES).map(([slug, entry]) => [entry.filename.toLowerCase(), slug])
+  );
+
+  const matches = new Set<string>();
+  for (const [doc] of searchResults) {
+    const source = typeof doc.metadata?.source === "string" ? doc.metadata.source : "";
+    const basename = path.basename(source).toLowerCase();
+    const slug = filenameToSlug.get(basename);
+    if (slug) matches.add(slug);
+  }
+
+  return Array.from(matches).map((slug) => {
+    const entry = CASE_STUDIES[slug]!;
+    const title = entry.title;
+    const relative = entry.webflowPreviewUrl?.trim() ? entry.webflowPreviewUrl.trim() : getCaseStudyPdfUrl(req, slug);
+    return {
+      slug,
+      title,
+      url: relative,
+    };
+  });
+}
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
@@ -411,9 +466,19 @@ app.post("/ask", async (req, res) => {
       `Email: ${contactEmail}`,
       `LinkedIn: ${contactLinkedInUrl}`,
     ];
+
+    const caseStudyInfoLines: string[] = [
+      "CASE STUDIES (use ONLY these canonical titles; include a link when relevant):",
+      ...Object.entries(CASE_STUDIES).map(([slug, entry]) => {
+        const preferredUrl = entry.webflowPreviewUrl?.trim() ? entry.webflowPreviewUrl.trim() : getCaseStudyPdfUrl(req, slug);
+        const label = entry.webflowPreviewUrl?.trim() ? "Webflow preview" : "PDF";
+        return `- ${entry.title} (${label}: ${preferredUrl})`;
+      }),
+    ];
     const messages: ChatCompletionMessageParam[] = [
       { role: "system", content: systemprompt },
       { role: "system", content: contactInfoLines.join("\n") },
+      { role: "system", content: caseStudyInfoLines.join("\n") },
       { 
         role: "user", 
         content: `Use the context below to answer with SPECIFIC, CONCRETE details from Keerti's work. Extract actual project names, numbers, outcomes, and methodologies. NEVER use placeholder text or generic descriptions.
@@ -436,9 +501,16 @@ Remember: Be specific, use real data from the context, and avoid vague language.
       messages,
     });
 
-    const answer = completion.choices[0].message.content;
+    const answer = completion.choices[0].message.content ?? "";
+    const caseStudyLinks = buildCaseStudyLinks(req, searchResults);
+    const seeMoreSection =
+      caseStudyLinks.length > 0
+        ? `\n\n---\n### Want to see more?\n${caseStudyLinks
+            .map((link) => `- [${link.title}](${link.url})`)
+            .join("\n")}\n`
+        : "";
 
-    res.json({ answer });
+    res.json({ answer: `${answer}${seeMoreSection}` });
   } catch (err) {
     console.error("🔥 /ask error:", err);
     res.status(500).json({ error: "Something went wrong." });
