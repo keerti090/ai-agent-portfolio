@@ -235,8 +235,9 @@ function App() {
   // Preview links for case studies.
   // 2024 work should take users to the Webflow preview pages.
   const projectPreviewLinks: Record<string, string> = {
-    // 2025 (served by backend)
-    "Search Global and Module": apiUrl("/case-studies/search"),
+    // 2025
+    // Use the static case study page in /public so it can be opened directly from the menu.
+    "Search Global and Module": "/global-search-case-study.html",
 
     // 2024 (Webflow previews)
     "Zentra - Property Management": "https://preview.webflow.com/preview/keertis-dapper-site?utm_medium=preview_link&utm_source=designer&utm_content=keertis-dapper-site&preview=193a28b12b9c763d9cdcb272279c9787&pageId=66031f7d5fe1526d39ea7fc6&workflow=sitePreview",
