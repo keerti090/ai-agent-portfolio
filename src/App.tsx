@@ -138,7 +138,6 @@ import pic from "./assets/pic.jpg";
 import "./App.css";
 import "./style.css";
 import ChatAgent from './Components/ChatAgent';
-import { apiUrl } from "./lib/api";
 
 function App() {
   const [activeItem, setActiveItem] = useState("Home");
@@ -232,11 +231,16 @@ function App() {
 
   const kebabLabel = mobileNavOpen ? "Close menu" : "Open menu";
 
+  const staticPageUrl = (filename: string) => {
+    const base = new URL(import.meta.env.BASE_URL, window.location.origin);
+    return new URL(filename, base).toString();
+  };
+
   // Preview links for case studies.
   // 2024 work should take users to the Webflow preview pages.
   const projectPreviewLinks: Record<string, string> = {
     // 2025 (served by backend)
-    "Search Global and Module": apiUrl("/case-studies/search"),
+    "Search Global and Module": staticPageUrl("search.html"),
 
     // 2024 (Webflow previews)
     "Zentra - Property Management": "https://preview.webflow.com/preview/keertis-dapper-site?utm_medium=preview_link&utm_source=designer&utm_content=keertis-dapper-site&preview=193a28b12b9c763d9cdcb272279c9787&pageId=66031f7d5fe1526d39ea7fc6&workflow=sitePreview",
