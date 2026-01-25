@@ -106,6 +106,30 @@
             font-style: italic;
         }
 
+        .video-embed {
+            margin: 32px 0;
+            padding: 24px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+        }
+
+        .video-embed video {
+            width: 100%;
+            height: auto;
+            display: block;
+            border-radius: 8px;
+            background: #0f172a;
+        }
+
+        .video-embed .media-caption {
+            margin-top: 12px;
+            font-size: 13px;
+            color: #64748b;
+            text-align: center;
+            font-style: italic;
+        }
+
         h2 {
             font-size: 32px;
             font-weight: 600;
@@ -828,8 +852,12 @@
             
             <p>Email notifications are sent at each state change to keep customers informed without requiring them to check the platform constantly.</p>
 
-            <div class="placeholder">
-                [Customer RFQ UI screens]
+            <div class="video-embed">
+                <video controls preload="metadata" playsinline>
+                    <source src="rfq-customer-experience.mp4" type="video/mp4"/>
+                    Your browser does not support the video tag.
+                </video>
+                <p class="media-caption">Customer experience walkthrough of the RFQ request flow.</p>
             </div>
 
             <h3>Reseller Experience</h3>
