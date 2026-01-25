@@ -106,6 +106,37 @@
             font-style: italic;
         }
 
+        .media-card {
+            margin: 32px 0;
+            background: #fff;
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+        }
+
+        .video-frame {
+            border-radius: 10px;
+            overflow: hidden;
+            background: #0b1220;
+            border: 1px solid #e5e7eb;
+        }
+
+        .video-frame video {
+            display: block;
+            width: 100%;
+            height: auto;
+            aspect-ratio: 16 / 9;
+            background: #0b1220;
+        }
+
+        .media-caption {
+            margin-top: 12px;
+            font-size: 13px;
+            color: #64748b;
+            text-align: center;
+            font-style: italic;
+        }
+
         h2 {
             font-size: 32px;
             font-weight: 600;
@@ -827,6 +858,17 @@
             </ul>
             
             <p>Email notifications are sent at each state change to keep customers informed without requiring them to check the platform constantly.</p>
+
+            <div class="media-card" aria-label="Customer experience video">
+                <div class="video-frame">
+                    <video controls preload="metadata" playsinline>
+                        <!-- Place your video at: /public/videos/rfq-customer-experience.mp4 -->
+                        <source src="videos/rfq-customer-experience.mp4" type="video/mp4" />
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+                <p class="media-caption">Customer experience walkthrough — RFQ request, status tracking, and notifications.</p>
+            </div>
 
             <div class="placeholder">
                 [Customer RFQ UI screens]
